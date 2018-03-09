@@ -28,24 +28,26 @@
 				0,  0,  0,  0,  0,  0,  0,  0,
 				0,  0,  0,  0,  0,  0,  0,  0
 			]))
-			function GameTree(color, x, y) {
+			function GameTree(x, y, color, board) {
 				this.x = x
 				this.y = y
 				this.color = color
 				this.board = (new Uint8Array(64))
+				this.board.set(board)
 				this.list = null
 			}
 			GameTree.pool = []
 			GameTree.log = []
-			function getGameTree(color, x=8, y=8) {
+			function getGameTree(x, y, color, board) {
 				if (GameTree.pool.length > 0) {
 					var gameTree = GameTree.pool.pop()
 					gameTree.x = x
 					gameTree.y = y
 					gameTree.color = color
+					gameTree.board.set(board)
 					return gameTree
 				} else {
-					return (new GameTree(color, x, y))
+					return (new GameTree(x, y, color, board))
 				}
 			}
 			function free(gameTree) {
@@ -58,9 +60,7 @@
 				}
 			}
 			function initialGameTree() {
-				var gameTree = getGameTree(BLACK)
-				gameTree.board.set(initialBoard)
-				return gameTree
+				return getGameTree(8, 8, BLACK, initialBoard)
 			}
 			function around(func, x, y) {
 				func((x - 1), (y - 1))
@@ -91,8 +91,7 @@
 							} else {
 								if (c > 0) {
 									if (idx == 0) {
-										nt = getGameTree((1 - gameTree.color), x, y)
-										nt.board.set(board)
+										nt = getGameTree(x, y, (1 - gameTree.color), board)
 										board = nt.board
 										board[(8 * x) + y] = (gameTree.color + EXIST)
 									}
@@ -116,10 +115,7 @@
 				return nt
 			}
 			GameTree.prototype.noMove = function() {
-				var next = getGameTree(1 - this.color)
-				next.board.set(this.board)
-				this.list.push(next)
-				return next
+				return getGameTree(8, 8, (1 - this.color), this.board)
 			}
 			var cellList = (new Array(64))
 			for (let x = 0; x < 8; x++) {
@@ -139,7 +135,7 @@
 					}
 				}
 				if (this.list.length == 0) {
-					this.noMove()
+					this.list.push(this.noMove())
 				}
 			}
 			function forceMove(gameTree, x, y) {
@@ -254,10 +250,14 @@
 				var move = this.list[i]
 				if (!move.board) {
 					move = forceMove(this, move.x, move.y)
-					if (!move) {
-						this.list.splice(i, 1)
-					} else {
+					if (move) {
 						this.list[i] = move
+					} else {
+						this.list.splice(i, 1)
+						if (this.list.length == 0) {
+							move = this.noMove()
+							this.list.push(move)
+						}
 					}
 				}
 				return move
@@ -291,14 +291,14 @@
 
 			// AI
 			var scoreTable = [
-				 71, -12,  -6,   0,   0,  -6, -12,  71,
-				-12, -16, -12, -13, -13, -12, -16, -12,
-				 -6, -12,  -7,  -1,  -1,  -7, -12,  -6,
-				  0, -13,  -1,  -2,  -2,  -1, -13,   0,
-				  0, -13,  -1,  -2,  -2,  -1, -13,   0,
-				 -6, -12,  -7,  -1,  -1,  -7, -12,  -6,
-				-12, -16, -12, -13, -13, -12, -16, -12,
-				 71, -12,  -6,   0,   0,  -6, -12,  71
+				71, -12,  -6,   0,   0,  -6, -12,  71,
+			 -12, -16, -12, -13, -13, -12, -16, -12,
+				-6, -12,  -7,  -1,  -1,  -7, -12,  -6,
+				 0, -13,  -1,  -2,  -2,  -1, -13,   0,
+				 0, -13,  -1,  -2,  -2,  -1, -13,   0,
+				-6, -12,  -7,  -1,  -1,  -7, -12,  -6,
+			 -12, -16, -12, -13, -13, -12, -16, -12,
+				71, -12,  -6,   0,   0,  -6, -12,  71
 			], stableScore = 71, calcTimes, $depth$ = 2
 			function calcScore(gameTree) {
 				calcTimes++
@@ -338,22 +338,17 @@
 				do {
 					i--
 					move = gameTree.getMove(i)
-					if (!move) {
-						if (gameTree.list.length > 0) {
-							continue
-						} else {
-							move = gameTree.noMove()
-						}
-					}
-					score = ((depth == 0)
-						? calcScore(move)
-						: ssbaMain(move, (depth - 1), (- max)))
-					if (score > max) {
-						max = score
-						gameTree.list.splice(i, 1)
-						gameTree.list.push(move)
-						if (max >= beta) {
-							break
+					if (move) {
+						score = ((depth == 0)
+							? calcScore(move)
+							: ssbaMain(move, (depth - 1), (- max)))
+						if (score > max) {
+							max = score
+							gameTree.list.splice(i, 1)
+							gameTree.list.push(move)
+							if (max >= beta) {
+								break
+							}
 						}
 					}
 				} while (i > 0)
@@ -386,34 +381,31 @@
 					depth = (64 - count)
 					gameTree.makeList()
 				}
-				var move = gameTree.list.pop(), max = (- Infinity)
-				do {
+				var move, max = (- Infinity)
+				while (gameTree.list.length > 0) {
+					move = gameTree.list.pop()
 					if (!move.board) {
 						move = forceMove(gameTree, move.x, move.y)
 						if (!move) {
-							if ((!next) && (gameTree.list.length == 0)) {
-								gameTree.noMove()
-								move = gameTree.list.pop()
-							} else {
-								move = gameTree.list.pop()
-								continue
-							}
+							continue
 						}
 					}
 					score = ((depth == 0)
 						? calcScore(move)
 						: ssbaMain(move, (depth - 1), (- max)))
 					if (score > max) {
-						max = score
 						if (next) {
 							free(next)
 						}
+						max = score
 						next = move
 					} else {
 						free(move)
 					}
-					move = gameTree.list.pop()
-				} while (move)
+				}
+				if (!next) {
+					next = gameTree.noMove()
+				}
 				spend = (Date.now() - start)
 				console.log(`${count}, ${depth}, ${spend}, ${calcTimes}, ${max}`)
 				GameTree.pool.push(gameTree)
@@ -424,42 +416,26 @@
 			// Interface
 			function setStoneByHuman(gameTree, x, y) {
 				gameTree.makeList()
-				var move
-				block:
-				if (gameTree.list[0].x != 8) {
-					for (var i = gameTree.list.length; i > 0;) {
-						i--
-						move = gameTree.getMove(i)
-						if (!move) {
-							if (gameTree.list.length > 0) {
-								continue
-							} else {
-								gameTree.noMove()
-								move = gameTree.list.pop()
-								break block
-							}
+				var move, i = gameTree.list.length
+				while (i > 0) {
+					i--
+					move = gameTree.getMove(i)
+					if (move && (((move.x == x) && (move.y == y)) || (move.x == 8))) {
+						gameTree.list.splice(i, 1)
+						if (gameTree.list.length > 0) {
+							gameTree.list.forEach(free)
+							gameTree.list.length = 0
 						}
-						if ((move.x == x) && (move.y == y)) {
-							gameTree.list.splice(i, 1)
-							break block
-						}
+						GameTree.log.push(gameTree)
+						return move
 					}
-					return gameTree
-				} else {
-					move = gameTree.list.pop()
 				}
-				if (gameTree.list.length > 0) {
-					gameTree.list.forEach(free)
-					gameTree.list.length = 0
-				}
-				GameTree.log.push(gameTree)
-				return move
 			}
 			var $gameTree$ = initialGameTree()
 			$gameTree$.draw()
 			canvas.addEventListener("click", function(e) {
 				var res = setStoneByHuman($gameTree$, Math.floor(e.x * 0.02), Math.floor(e.y * 0.02))
-				if (res != $gameTree$) {
+				if (res) {
 					$gameTree$ = setStoneByAI(res, (($depth$ >= 2) ? ($depth$ - 2) : 0))
 					$gameTree$.draw()
 				}
