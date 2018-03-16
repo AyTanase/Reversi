@@ -15,9 +15,8 @@
 		<script type="text/javascript">
 			"use strict"
 			// System
-			const COLOR = 1, EXIST = 2, STABLE_0 = 4, STABLE_45 = 8,
-				STABLE_90 = 16, STABLE_135 = 32, EDGE = 64,
-				BLACK = 0, WHITE = 1, STABLE = 60
+			const COLOR = 1, EXIST = 2, STABLE_0 = 4, STABLE_45 = 8, STABLE_90 = 16,
+				STABLE_135 = 32, EDGE = 64, BLACK = 0, WHITE = 1, STABLE = 60
 			var initialBoard = (new Uint8Array([
 				0,  0,  0,  0,  0,  0,  0,  0,
 				0,  0,  0,  0,  0,  0,  0,  0,
@@ -28,31 +27,35 @@
 				0,  0,  0,  0,  0,  0,  0,  0,
 				0,  0,  0,  0,  0,  0,  0,  0
 			]))
-			function GameTree(x, y, color, board) {
-				this.x = x
-				this.y = y
+			function GameTree(color, board, count) {
 				this.color = color
 				this.board = (new Uint8Array(64))
 				this.board.set(board)
+				this.count = count
 				this.list = null
+				this.depth = 0
+				this.alpha = (- Infinity)
+				this.beta = Infinity
 			}
 			GameTree.pool = []
 			GameTree.log = []
-			function getGameTree(x, y, color, board) {
+			function getGameTree(color, board, count) {
 				if (GameTree.pool.length > 0) {
 					var gameTree = GameTree.pool.pop()
-					gameTree.x = x
-					gameTree.y = y
 					gameTree.color = color
 					gameTree.board.set(board)
+					gameTree.count = count
+					gameTree.depth = 0
+					gameTree.alpha = (- Infinity)
+					gameTree.beta = Infinity
 					return gameTree
 				} else {
-					return (new GameTree(x, y, color, board))
+					return (new GameTree(color, board, count))
 				}
 			}
 			function free(gameTree) {
 				if (gameTree.board) {
-					if (gameTree.list && gameTree.list.length > 0) {
+					if (gameTree.list && (gameTree.list.length > 0)) {
 						gameTree.list.forEach(free)
 						gameTree.list.length = 0
 					}
@@ -60,62 +63,10 @@
 				}
 			}
 			function initialGameTree() {
-				return getGameTree(8, 8, BLACK, initialBoard)
-			}
-			function around(func, x, y) {
-				func((x - 1), (y - 1))
-				func((x - 1), y)
-				func((x - 1), (y + 1))
-				func(x, (y - 1))
-				func(x, (y + 1))
-				func((x + 1), (y - 1))
-				func((x + 1), y)
-				func((x + 1), (y + 1))
-			}
-			var changedList = (new Array(18)), idx
-			for (var i = 0; i < 18; i++) {
-				changedList[i] = { x: undefined, y: undefined }
-			}
-			function reverseStones(gameTree, x, y) {
-				var board = gameTree.board, nt
-				function reverseOneDirection(dirX, dirY) {
-					var lx = (x + dirX), ly = (y + dirY), c = 0, stone
-					while ((lx >= 0) && (ly >= 0) && (lx < 8) && (ly < 8)) {
-						stone = board[(8 * lx) + ly]
-						if (stone & EXIST) {
-							if ((stone & COLOR) != gameTree.color) {
-								lx += dirX
-								ly += dirY
-								c++
-								continue
-							} else {
-								if (c > 0) {
-									if (idx == 0) {
-										nt = getGameTree(x, y, (1 - gameTree.color), board)
-										board = nt.board
-										board[(8 * x) + y] = (gameTree.color + EXIST)
-									}
-									do {
-										c--
-										lx -= dirX
-										ly -= dirY
-										board[(8 * lx) + ly] += ((2 * gameTree.color) - COLOR)
-										changedList[idx].x = lx
-										changedList[idx].y = ly
-										idx++
-									} while (c > 0)
-								}
-							}
-						}
-						break
-					}
-				}
-				idx = 0
-				around(reverseOneDirection, 0, 0)
-				return nt
+				return getGameTree(BLACK, initialBoard, 4)
 			}
 			GameTree.prototype.noMove = function() {
-				return getGameTree(8, 8, (1 - this.color), this.board)
+				return getGameTree((1 - this.color), this.board, this.count)
 			}
 			var cellList = (new Array(64))
 			for (let x = 0; x < 8; x++) {
@@ -138,127 +89,177 @@
 					this.list.push(this.noMove())
 				}
 			}
-			function forceMove(gameTree, x, y) {
-				var board
-				function lowCostStabilize(x, y) {
-					var color
-					function checkTwoDirection(dirX, dirY, flag) {
-						var lx = (x + dirX), ly = (y + dirY), stone, state = false
-						if ((lx >= 0) && (ly >= 0) && (lx < 8) && (ly < 8)) {
-							stone = board[(8 * lx) + ly]
-							if ((stone & 62) == 62) { // (EXIST & STABLE)
-								if ((stone & COLOR) == color) {
-									return true
-								}
-							} else {
-								state = true
-							}
-							lx = (x - dirX)
-							ly = (y - dirY)
-							if ((lx >= 0) && (ly >= 0) && (lx < 8) && (ly < 8)) {
-								stone = board[(8 * lx) + ly]
-								if ((stone & 62) == 62) {
-									if (state) {
-										return ((stone & COLOR) == color)
-									}
-								} else {
-									return false
-								}
-							}
-						}
-						board[(8 * x) + y] |= flag
-						return true
-					}
-					if ((x >= 0) && (y >= 0) && (x < 8) && (y < 8)) {
-						var stone = board[(8 * x) + y]
-						if ((stone & EXIST) && ((stone & STABLE) != STABLE)) {
-							color = (stone & COLOR)
-							if (((stone & STABLE_0) || checkTwoDirection(1, 0, STABLE_0))
-									&& ((stone & STABLE_45) || checkTwoDirection(1, 1, STABLE_45))
-									&& ((stone & STABLE_90) || checkTwoDirection(0, 1, STABLE_90))
-									&& ((stone & STABLE_135) || checkTwoDirection(-1, 1, STABLE_135))) {
-								board[(8 * x) + y] |= STABLE
-								around(lowCostStabilize, x, y)
-							}
-						}
-					}
-				}
-				function highCostStabilize(x, y) {
-					function checkTwoDirection(dirX, dirY, flag, first) {
-						var lx = (x + dirX), ly = (y + dirY), c = 0
-						while ((lx >= 0) && (ly >= 0) && (lx < 8) && (ly < 8)) {
-							if (board[(8 * lx) + ly] & EXIST) {
+			function around(func, x, y, arg) {
+				func((x - 1), (y - 1), arg)
+				func((x - 1), y, arg)
+				func((x - 1), (y + 1), arg)
+				func(x, (y - 1), arg)
+				func(x, (y + 1), arg)
+				func((x + 1), (y - 1), arg)
+				func((x + 1), y, arg)
+				func((x + 1), (y + 1), arg)
+			}
+			var changedList = (new Array(18)), idx
+			for (var i = 0; i < 18; i++) {
+				changedList[i] = { x: undefined, y: undefined }
+			}
+			function reverseStones(gameTree, x, y) {
+				var board = gameTree.board, nt
+				function reverseOneDirection(dirX, dirY) {
+					var lx = (x + dirX), ly = (y + dirY), c = 0, stone
+					while ((lx >= 0) && (ly >= 0) && (lx < 8) && (ly < 8)) {
+						stone = board[(8 * lx) + ly]
+						if (stone & EXIST) {
+							if ((stone & COLOR) != gameTree.color) {
 								lx += dirX
 								ly += dirY
 								c++
+								continue
 							} else {
-								return false
-							}
-						}
-						if (first) {
-							if (checkTwoDirection((- dirX), (- dirY), flag, false)) {
-								board[(8 * x) + y] |= flag
-							} else {
-								return false
-							}
-						}
-						while (c > 0) {
-							c--
-							lx -= dirX
-							ly -= dirY
-							if (!(board[(8 * lx) + ly] & flag)) {
-								board[(8 * lx) + ly] += flag
-								if ((board[(8 * lx) + ly] & STABLE) == STABLE) {
-									around(lowCostStabilize, lx, ly)
-								} else {
-									lowCostStabilize(lx, ly)
+								if (c > 0) {
+									if (idx == 0) {
+										nt = getGameTree((1 - gameTree.color), board, (gameTree.count + 1))
+										board = nt.board
+										board[(8 * x) + y] = (gameTree.color + EXIST)
+									}
+									do {
+										c--
+										lx -= dirX
+										ly -= dirY
+										board[(8 * lx) + ly] += ((2 * gameTree.color) - COLOR)
+										changedList[idx].x = lx
+										changedList[idx].y = ly
+										idx++
+									} while (c > 0)
 								}
 							}
 						}
-						return true
-					}
-					checkTwoDirection(1, 0, STABLE_0, true)
-					checkTwoDirection(1, 1, STABLE_45, true)
-					checkTwoDirection(0, 1, STABLE_90, true)
-					checkTwoDirection(-1, 1, STABLE_135, true)
-					if ((board[(8 * x) + y] & STABLE) == STABLE) {
-						around(lowCostStabilize, x, y)
-					} else {
-						lowCostStabilize(x, y)
+						break
 					}
 				}
+				idx = 0
+				around(reverseOneDirection, 0, 0)
+				return nt
+			}
+			function lowCostStabilize(x, y, board) {
+				var color
+				function checkTwoDirection(dirX, dirY, flag) {
+					var lx = (x + dirX), ly = (y + dirY), stone, state = false
+					if ((lx >= 0) && (ly >= 0) && (lx < 8) && (ly < 8)) {
+						stone = board[(8 * lx) + ly]
+						if ((stone & 62) == 62) { // (EXIST & STABLE)
+							if ((stone & COLOR) == color) {
+								return true
+							}
+						} else {
+							state = true
+						}
+						lx = (x - dirX)
+						ly = (y - dirY)
+						if ((lx >= 0) && (ly >= 0) && (lx < 8) && (ly < 8)) {
+							stone = board[(8 * lx) + ly]
+							if ((stone & 62) == 62) {
+								if (state) {
+									return ((stone & COLOR) == color)
+								}
+							} else {
+								return false
+							}
+						}
+					}
+					board[(8 * x) + y] |= flag
+					return true
+				}
+				if ((x >= 0) && (y >= 0) && (x < 8) && (y < 8)) {
+					var stone = board[(8 * x) + y]
+					if ((stone & EXIST) && ((stone & STABLE) != STABLE)) {
+						color = (stone & COLOR)
+						if (((stone & STABLE_0) || checkTwoDirection(1, 0, STABLE_0))
+								&& ((stone & STABLE_45) || checkTwoDirection(1, 1, STABLE_45))
+								&& ((stone & STABLE_90) || checkTwoDirection(0, 1, STABLE_90))
+								&& ((stone & STABLE_135) || checkTwoDirection(-1, 1, STABLE_135))) {
+							board[(8 * x) + y] |= STABLE
+							around(lowCostStabilize, x, y, board)
+						}
+					}
+				}
+			}
+			function highCostStabilize(x, y, board) {
+				function checkTwoDirection(dirX, dirY, flag, first) {
+					var lx = (x + dirX), ly = (y + dirY), c = 0
+					while ((lx >= 0) && (ly >= 0) && (lx < 8) && (ly < 8)) {
+						if (board[(8 * lx) + ly] & EXIST) {
+							lx += dirX
+							ly += dirY
+							c++
+						} else {
+							return false
+						}
+					}
+					if (first) {
+						if (checkTwoDirection((- dirX), (- dirY), flag, false)) {
+							board[(8 * x) + y] |= flag
+						} else {
+							return false
+						}
+					}
+					while (c > 0) {
+						c--
+						lx -= dirX
+						ly -= dirY
+						if (!(board[(8 * lx) + ly] & flag)) {
+							board[(8 * lx) + ly] += flag
+							if ((board[(8 * lx) + ly] & STABLE) == STABLE) {
+								around(lowCostStabilize, lx, ly, board)
+							} else {
+								lowCostStabilize(lx, ly, board)
+							}
+						}
+					}
+					return true
+				}
+				checkTwoDirection(1, 0, STABLE_0, true)
+				checkTwoDirection(1, 1, STABLE_45, true)
+				checkTwoDirection(0, 1, STABLE_90, true)
+				checkTwoDirection(-1, 1, STABLE_135, true)
+				if ((board[(8 * x) + y] & STABLE) == STABLE) {
+					around(lowCostStabilize, x, y, board)
+				} else {
+					lowCostStabilize(x, y, board)
+				}
+			}
+			function forceMove(gameTree, x, y) {
 				var nt = reverseStones(gameTree, x, y)
 				if (idx > 0) {
-					board = nt.board
 					around(function(x, y) {
 						if ((x >= 0) && (y >= 0) && (x < 8) && (y < 8)
-								&& (board[(8 * x) + y] == 0)) {
-							board[(8 * x) + y] = EDGE
+								&& (nt.board[(8 * x) + y] == 0)) {
+							nt.board[(8 * x) + y] = EDGE
 						}
 					}, x, y)
-					highCostStabilize(x, y)
+					highCostStabilize(x, y, nt.board)
 					var cell
 					while (idx > 0) {
 						idx--
 						cell = changedList[idx]
-						lowCostStabilize(cell.x, cell.y)
+						lowCostStabilize(cell.x, cell.y, nt.board)
 					}
+					return nt
 				}
-				return nt
 			}
 			GameTree.prototype.getMove = function(i) {
 				var move = this.list[i]
 				if (!move.board) {
 					move = forceMove(this, move.x, move.y)
-					if (move) {
-						this.list[i] = move
-					} else {
-						this.list.splice(i, 1)
-						if (this.list.length == 0) {
+					if (!move) {
+						if (this.list.length > 1) {
+							this.list.splice(i, 1)
+							return
+						} else {
 							move = this.noMove()
-							this.list.push(move)
 						}
 					}
+					this.list[i] = move
 				}
 				return move
 			}
@@ -290,142 +291,164 @@
 			}
 
 			// AI
-			var scoreTable = [
-				71, -12,  -6,   0,   0,  -6, -12,  71,
-			 -12, -16, -12, -13, -13, -12, -16, -12,
-				-6, -12,  -7,  -1,  -1,  -7, -12,  -6,
-				 0, -13,  -1,  -2,  -2,  -1, -13,   0,
-				 0, -13,  -1,  -2,  -2,  -1, -13,   0,
-				-6, -12,  -7,  -1,  -1,  -7, -12,  -6,
-			 -12, -16, -12, -13, -13, -12, -16, -12,
-				71, -12,  -6,   0,   0,  -6, -12,  71
-			], stableScore = 71, calcTimes, $depth$ = 2
+			var scoreTable0 = [
+				 47,  25, -11,   6,   6, -11,  25,  47,
+				 25, -10, -31, -32, -32, -31, -10,  25,
+				-11, -31, -15,   2,   2, -15, -31, -11,
+				  6, -32,   2,   1,   1,   2, -32,   6,
+				  6, -32,   2,   1,   1,   2, -32,   6,
+				-11, -31, -15,   2,   2, -15, -31, -11,
+				 25, -10, -31, -32, -32, -31, -10,  25,
+				 47,  25, -11,   6,   6, -11,  25,  47
+			], scoreTable1 = [
+				47,  -9,  -7,   1,   1,  -7,  -9,  47,
+				-9, -16, -12, -14, -14, -12, -16,  -9,
+				-7, -12,  -8,  -3,  -3,  -8, -12,  -7,
+				 1, -14,  -3,   2,   2,  -3, -14,   1,
+				 1, -14,  -3,   2,   2,  -3, -14,   1,
+				-7, -12,  -8,  -3,  -3,  -8, -12,  -7,
+				-9, -16, -12, -14, -14, -12, -16,  -9,
+				47,  -9,  -7,   1,   1,  -7,  -9,  47
+			], scoreTable2 = [
+				 47,  -7, -10,   4,   4, -10,  -7,  47,
+				 -7,  -4, -32,  -8,  -8, -32,  -4,  -7,
+				-10, -32, -15,   4,   4, -15, -32, -10,
+				  4,  -8,   4,   4,   4,   4,  -8,   4,
+				  4,  -8,   4,   4,   4,   4,  -8,   4,
+				-10, -32, -15,   4,   4, -15, -32, -10,
+				 -7,  -4, -32,  -8,  -8, -32,  -4,  -7,
+				 47,  -7, -10,   4,   4, -10,  -7,  47
+			], stableScore = 47
 			function calcScore(gameTree) {
-				calcTimes++
-				var sum = 0, stone
+				if (gameTree.depth == 0) {
+					if (gameTree.alpha > (- Infinity)) {
+						return gameTree.alpha
+					}
+				} else {
+					gameTree.depth = 0
+				}
+				var sum = 0, stone,
+					scoreTable = ((gameTree.count < 24) ? scoreTable0
+						: ((gameTree.count < 44) ? scoreTable1 : scoreTable2))
 				for (var i = 0; i < 64; i++) {
 					stone = gameTree.board[i]
 					if (stone & EXIST) {
 						if ((stone & STABLE) != STABLE) {
 							if ((stone & COLOR) == gameTree.color) {
-								sum -= scoreTable[i]
-							} else {
 								sum += scoreTable[i]
+							} else {
+								sum -= scoreTable[i]
 							}
 						} else {
 							if ((stone & COLOR) == gameTree.color) {
-								sum -= stableScore
-							} else {
 								sum += stableScore
+							} else {
+								sum -= stableScore
 							}
 						}
 					}
 				}
+				gameTree.alpha = sum
 				return sum
 			}
-			function countStone(board) {
-				var c = 0;
-				for (var i = 0; i < 64; i++) {
-					if (board[i] & EXIST) {
-						c++
+			function ssbaMain(gameTree, depth, alpha, beta) {
+				if (gameTree.depth == (depth + 1)) {
+					if (gameTree.alpha >= beta) {
+						return gameTree.alpha
 					}
+					if (gameTree.beta <= alpha) {
+						return gameTree.beta
+					}
+				} else {
+					gameTree.depth = (depth + 1)
+					gameTree.alpha = (- Infinity)
+					gameTree.beta = Infinity
 				}
-				return c
-			}
-			function ssbaMain(gameTree, depth, beta) {
 				gameTree.makeList()
-				var i = gameTree.list.length, max = (- Infinity), score, move
+				var i = gameTree.list.length, j, score, move, max = (- Infinity)
 				do {
-					i--
-					move = gameTree.getMove(i)
-					if (move) {
-						score = ((depth == 0)
-							? calcScore(move)
-							: ssbaMain(move, (depth - 1), (- max)))
-						if (score > max) {
-							max = score
+					j = i
+					for (;;) {
+						i--
+						move = gameTree.list[i]
+						if (!move.board) {
+							move = forceMove(gameTree, move.x, move.y)
+							if (!move) {
+								if (i > 0) {
+									continue
+								} else if (j < gameTree.list.length) {
+									gameTree.list.splice(0, j)
+									gameTree.beta = max
+									return max
+								} else {
+									move = gameTree.noMove()
+								}
+							}
+							gameTree.list[i] = move
+						}
+						if ((i + 1) < j) {
+							gameTree.list.splice((i + 1), (j - (i + 1)))
+						}
+						break
+					}
+					score = (- ((depth > 0)
+						? ssbaMain(move, (depth - 1), (- beta), (- alpha))
+						: calcScore(move)))
+					if (score > max) {
+						max = score
+						if ((i + 1) < gameTree.list.length) {
 							gameTree.list.splice(i, 1)
 							gameTree.list.push(move)
-							if (max >= beta) {
-								break
-							}
+						}
+						if (max >= beta) {
+							gameTree.alpha = max
+							return max
 						}
 					}
 				} while (i > 0)
-				return (- max)
+				gameTree.beta = max
+				return max
 			}
 			function setStoneByAI(gameTree, depth) {
-				var count = countStone(gameTree.board), next, start, spend, score
-				calcTimes = 0
+				var start, spend, next, score, res
 				start = Date.now()
-				if ((count + depth) < 64) {
-					for (;;) {
-						score = (- ssbaMain(gameTree, depth, Infinity))
-						spend = (Date.now() - start)
-						console.log(`${count}, ${depth}, ${spend}, ${calcTimes}, ${score}, ${gameTree.list.length}`)
-						if ((calcTimes < 10000) && ((count + depth) < 63)) {
-							depth++
-						} else {
-							break
-						}
-					}
-					if (calcTimes < 100000) {
+				if ((gameTree.count + depth) > 64) {
+					depth = (64 - gameTree.count)
+				}
+				for (;;) {
+					score = 0
+					do {
+						res = ssbaMain(gameTree, depth, score, (score + 1))
+						score = ((res > score) ? res : (res - 1))
+					} while (gameTree.alpha < gameTree.beta)
+					spend = (Date.now() - start)
+					console.log(`${gameTree.count}, ${depth}, ${spend}, ${res}`)
+					if ((spend < 142) && ((gameTree.count + depth) < 64)) {
 						depth++
 					} else {
-						next = gameTree.list.pop()
-						free(gameTree)
-						$depth$ = depth
-						return next
-					}
-				} else {
-					depth = (64 - count)
-					gameTree.makeList()
-				}
-				var move, max = (- Infinity)
-				while (gameTree.list.length > 0) {
-					move = gameTree.list.pop()
-					if (!move.board) {
-						move = forceMove(gameTree, move.x, move.y)
-						if (!move) {
-							continue
-						}
-					}
-					score = ((depth == 0)
-						? calcScore(move)
-						: ssbaMain(move, (depth - 1), (- max)))
-					if (score > max) {
-						if (next) {
-							free(next)
-						}
-						max = score
-						next = move
-					} else {
-						free(move)
+						break
 					}
 				}
-				if (!next) {
-					next = gameTree.noMove()
-				}
-				spend = (Date.now() - start)
-				console.log(`${count}, ${depth}, ${spend}, ${calcTimes}, ${max}`)
-				GameTree.pool.push(gameTree)
-				$depth$ = depth
+				next = gameTree.list.pop()
+				free(gameTree)
 				return next
 			}
 
 			// Interface
 			function setStoneByHuman(gameTree, x, y) {
 				gameTree.makeList()
-				var move, i = gameTree.list.length
+				var move, i = gameTree.list.length, flag = (gameTree.board[(8 * x) + y] == EDGE)
 				while (i > 0) {
 					i--
 					move = gameTree.getMove(i)
-					if (move && (((move.x == x) && (move.y == y)) || (move.x == 8))) {
+					if (move && ((flag && (move.board[(8 * x) + y] & EXIST))
+							|| (move.count == gameTree.count))) {
 						gameTree.list.splice(i, 1)
 						if (gameTree.list.length > 0) {
 							gameTree.list.forEach(free)
-							gameTree.list.length = 0
 						}
+						gameTree.list = null
+						gameTree.depth = 0
 						GameTree.log.push(gameTree)
 						return move
 					}
@@ -436,7 +459,7 @@
 			canvas.addEventListener("click", function(e) {
 				var res = setStoneByHuman($gameTree$, Math.floor(e.x * 0.02), Math.floor(e.y * 0.02))
 				if (res) {
-					$gameTree$ = setStoneByAI(res, (($depth$ >= 2) ? ($depth$ - 2) : 0))
+					$gameTree$ = setStoneByAI(res, ((res.depth > 0) ? (res.depth - 1) : 0))
 					$gameTree$.draw()
 				}
 			})
@@ -445,7 +468,6 @@
 				if (prev) {
 					free($gameTree$)
 					$gameTree$ = prev
-					$depth$ = 2
 					prev.draw()
 				}
 			})
@@ -454,12 +476,12 @@
 				free($gameTree$)
 				if (GameTree.log.length > 0) {
 					GameTree.log.forEach(free)
+					GameTree.log.fill(null)
 					GameTree.log.length = 0
 				}
 				$gameTree$ = initialGameTree()
 				if (window.confirm("Do you use black?")) {
 					userColor.textContent = "Black"
-					$depth$ = 2
 				} else {
 					$gameTree$ = setStoneByAI($gameTree$, 1)
 					userColor.textContent = "White"
@@ -469,7 +491,7 @@
 			document.getElementById("gc").addEventListener("click", function() {
 				GameTree.pool = []
 			})
-			console.log("stones, ply depth, time(ms), calcTimes, score[, moves]")
+			console.log("stones, ply depth, time(ms), score")
 		</script>
 	</body>
 </html>
