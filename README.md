@@ -1,3 +1,3 @@
 # Reversi
 
-A simple reversi AI
+Simple reversi AI

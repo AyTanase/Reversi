@@ -1,0 +1,511 @@
+﻿<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Reversi Hybrid AI</title>
+	</head>
+	<body>
+		<canvas width=400 height=400 style="background-color:green;"></canvas>
+		<div>
+			<button id="undo" type="button">Undo</button>
+			<button id="reset" type="button">Reset</button>
+			<span>User Color:</span><span id="user-color">Black</span>
+		</div>
+		<script type="text/javascript">
+			"use strict"
+			function GameTree(color, self, opponent, state) {
+				this.color = color
+				this.self = (new Uint32Array(2))
+				this.opponent = (new Uint32Array(2))
+				this.state = (new Uint8Array(64))
+				this.list = null
+				this.depth = -2
+				this.alpha = (- Infinity)
+				this.beta = Infinity
+				this.self.set(self)
+				this.opponent.set(opponent)
+				this.state.set(state)
+			}
+			const BLACK = 0, WHITE = 1, OPEN = 15, STABLE_0 = 16,
+				STABLE_45 = 32, STABLE_90 = 64, STABLE_135 = 128, STABLE = 240,
+				INITIAL_BLACK = (new Uint32Array([0x10000000, 0x00000008])),
+				INITIAL_WHITE = (new Uint32Array([0x08000000, 0x00000010])),
+				INITIAL_STATE = (new Uint8Array([
+					3, 5, 5, 5, 5, 5, 5, 3,
+					5, 8, 8, 8, 8, 8, 8, 5,
+					5, 8, 7, 6, 6, 7, 8, 5,
+					5, 8, 6, 5, 5, 6, 8, 5,
+					5, 8, 6, 5, 5, 6, 8, 5,
+					5, 8, 7, 6, 6, 7, 8, 5,
+					5, 8, 8, 8, 8, 8, 8, 5,
+					3, 5, 5, 5, 5, 5, 5, 3
+				]))
+			function initialGameTree() {
+				return (new GameTree(BLACK, INITIAL_BLACK, INITIAL_WHITE, INITIAL_STATE))
+			}
+			var self = (new Uint32Array(2)), opponent = (new Uint32Array(2)),
+				potential = (new Uint32Array(2)), moves = (new Uint32Array(2))
+			function getMoves(origSelf, origOpponent) {
+				var mask, shiftWidth
+				function leftShift(arr) {
+					arr[1] &= mask
+					arr[1] <<= shiftWidth
+					arr[0] &= mask
+					arr[1] |= (arr[0] >>> (32 - shiftWidth))
+					arr[0] <<= shiftWidth
+				}
+				function rightShift(arr) {
+					arr[0] &= mask
+					arr[0] >>>= shiftWidth
+					arr[1] &= mask
+					arr[0] |= (arr[1] << (32 - shiftWidth))
+					arr[1] >>>= shiftWidth
+				}
+				function checkMoves(shift) {
+					self.set(origSelf)
+					opponent.set(origOpponent)
+					potential[0] = (~ (self[0] | opponent[0]))
+					potential[1] = (~ (self[1] | opponent[1]))
+					shift(self)
+					shift(opponent)
+					for (var i = 0; i < 6; i++) {
+						potential[0] &= opponent[0]
+						potential[1] &= opponent[1]
+						shift(self)
+						shift(opponent)
+						moves[0] |= (self[0] & potential[0])
+						moves[1] |= (self[1] & potential[1])
+					}
+				}
+				moves.fill(0)
+				mask = 0xFFFFFFFF; shiftWidth = 8
+				checkMoves(leftShift)
+				checkMoves(rightShift)
+				mask = 0x7F7F7F7F
+				shiftWidth = 9; checkMoves(leftShift)
+				shiftWidth = 7; checkMoves(rightShift)
+				shiftWidth = 1; checkMoves(leftShift)
+				mask = 0xFEFEFEFE
+				shiftWidth = 9; checkMoves(rightShift)
+				shiftWidth = 7; checkMoves(leftShift)
+				shiftWidth = 1; checkMoves(rightShift)
+			}
+			var cellList = (new Array(64))
+			for (let x = 0; x < 8; x++) {
+				for (let y = 0; y < 8; y++) {
+					cellList[(8 * x) + y] = { x: x, y: y }
+				}
+			}
+			function makeList(gt) {
+				if (!gt.list) {
+					var i, j
+					gt.list = []
+					getMoves(gt.self, gt.opponent)
+					for (i = 0; i < 2; i++) {
+						if (moves[i] != 0) {
+							for (j = 0; j < 32; j++) {
+								if ((moves[i] & (1 << j)) != 0) {
+									gt.list.push(cellList[(32 * i) + j])
+								}
+							}
+						}
+					}
+					if (gt.list.length == 0) {
+						gt.list.push(new GameTree((1 - gt.color), gt.opponent, gt.self, gt.state))
+					}
+				}
+			}
+			function around(func, x, y, rest) {
+				func((x - 1), (y - 1), rest)
+				func((x - 1), y, rest)
+				func((x - 1), (y + 1), rest)
+				func(x, (y - 1), rest)
+				func(x, (y + 1), rest)
+				func((x + 1), (y - 1), rest)
+				func((x + 1), y, rest)
+				func((x + 1), (y + 1), rest)
+			}
+			var changedList = (new Array(18)), idx
+			for (let i = 0; i < 18; i++) {
+				changedList[i] = { x: 0, y: 0 }
+			}
+			function reverseStones(gt, x, y) {
+				var nt
+				function reverseOneDirection(dirX, dirY) {
+					var lx = (x + dirX), ly = (y + dirY), c = 0, i, ref
+					for (;;) {
+						if ((lx >= 0) && (ly >= 0) && (lx < 8) && (ly < 8)) {
+							i = (lx >> 2)
+							ref = (1 << ((8 * (lx & 3)) + ly))
+							if ((nt.self[i] & ref) != 0) {
+								lx += dirX
+								ly += dirY
+								c++
+								continue
+							} else if ((nt.opponent[i] & ref) != 0) {
+								while (c > 0) {
+									c--
+									lx -= dirX
+									ly -= dirY
+									i = (lx >> 2)
+									ref = (1 << ((8 * (lx & 3)) + ly))
+									nt.opponent[i] |= ref
+									nt.self[i] ^= ref
+									changedList[idx].x = lx
+									changedList[idx].y = ly
+									idx++
+								}
+							}
+						}
+						break
+					}
+				}
+				nt = (new GameTree((1 - gt.color), gt.opponent, gt.self, gt.state))
+				nt.opponent[x >> 2] |= (1 << ((8 * (x & 3)) + y))
+				idx = 0
+				around(reverseOneDirection, 0, 0)
+				return nt
+			}
+			function lowCostStabilize(x, y, gt) {
+				var board
+				function checkTwoDirection(dirX, dirY, flag) {
+					if ((gt.state[(8 * x) + y] & flag) != 0) {
+						return true
+					} else {
+						var lx = (x + dirX), ly = (y + dirY), f = false
+						if ((lx >= 0) && (ly >= 0) && (lx < 8) && (ly < 8)) {
+							if ((gt.state[(8 * lx) + ly] & STABLE) == STABLE) {
+								if ((board[lx >> 2] & (1 << ((8 * (lx & 3)) + ly))) != 0) {
+									return true
+								}
+							} else {
+								f = true
+							}
+							lx = (x - dirX)
+							ly = (y - dirY)
+							if ((lx >= 0) && (ly >= 0) && (lx < 8) && (ly < 8)) {
+								if ((gt.state[(8 * lx) + ly] & STABLE) == STABLE) {
+									if (f) {
+										return ((board[lx >> 2] & (1 << ((8 * (lx & 3)) + ly))) != 0)
+									}
+								} else {
+									return false
+								}
+							}
+						}
+						gt.state[(8 * x) + y] |= flag
+						return true
+					}
+				}
+				var i, ref
+				if ((x >= 0) && (y >= 0) && (x < 8) && (y < 8)
+						&& ((gt.state[(8 * x) + y] & STABLE) != STABLE)) {
+					i = (x >> 2)
+					ref = (1 << ((8 * (x & 3)) + y))
+					if ((gt.self[i] & ref) != 0) {
+						board = gt.self
+					} else if ((gt.opponent[i] & ref) != 0) {
+						board = gt.opponent
+					} else {
+						return
+					}
+					if (checkTwoDirection(1, 0, STABLE_0)
+							&& checkTwoDirection(1, 1, STABLE_45)
+							&& checkTwoDirection(0, 1, STABLE_90)
+							&& checkTwoDirection(-1, 1, STABLE_135)) {
+						gt.state[(8 * x) + y] |= STABLE
+						around(lowCostStabilize, x, y, gt)
+					}
+				}
+			}
+			var stones = (new Uint32Array(2))
+			function highCostStabilize(x, y, gt) {
+				function checkTwoDirection(dirX, dirY, flag, first) {
+					var lx = (x + dirX), ly = (y + dirY), c = 0
+					while ((lx >= 0) && (ly >= 0) && (lx < 8) && (ly < 8)) {
+						if ((stones[lx >> 2] & (1 << ((8 * (lx & 3)) + ly))) != 0) {
+							lx += dirX
+							ly += dirY
+							c++
+						} else {
+							return false
+						}
+					}
+					if (first) {
+						if (checkTwoDirection((- dirX), (- dirY), flag, false)) {
+							gt.state[(8 * x) + y] |= flag
+						} else {
+							return false
+						}
+					}
+					while (c > 0) {
+						c--
+						lx -= dirX
+						ly -= dirY
+						if ((gt.state[(8 * lx) + ly] & flag) == 0) {
+							gt.state[(8 * lx) + ly] |= flag
+							if ((gt.state[(8 * lx) + ly] & STABLE) == STABLE) {
+								around(lowCostStabilize, lx, ly, gt)
+							} else {
+								lowCostStabilize(lx, ly, gt)
+							}
+						}
+					}
+					return true
+				}
+				stones[0] = (gt.self[0] | gt.opponent[0])
+				stones[1] = (gt.self[1] | gt.opponent[1])
+				checkTwoDirection(1, 0, STABLE_0, true)
+				checkTwoDirection(1, 1, STABLE_45, true)
+				checkTwoDirection(0, 1, STABLE_90, true)
+				checkTwoDirection(-1, 1, STABLE_135, true)
+				if ((gt.state[(8 * x) + y] & STABLE) == STABLE) {
+					around(lowCostStabilize, x, y, gt)
+				} else {
+					lowCostStabilize(x, y, gt)
+				}
+			}
+			function setStone(gt, x, y) {
+				var nt = reverseStones(gt, x, y), cell
+				around(function(x, y) {
+					if ((x >= 0) && (y >= 0) && (x < 8) && (y < 8)) {
+						nt.state[(8 * x) + y]--
+					}
+				}, x, y)
+				highCostStabilize(x, y, nt)
+				while (idx > 0) {
+					idx--
+					cell = changedList[idx]
+					lowCostStabilize(cell.x, cell.y, nt)
+				}
+				return nt
+			}
+			function getMove(gt, i) {
+				var move = gt.list[i]
+				if (!move.state) {
+					move = setStone(gt, move.x, move.y)
+					gt.list[i] = move
+				}
+				return move
+			}
+			function countStones(gt) {
+				var i, j, n = 0
+				for (i = 0; i < 2; i++) {
+					for (j = 0; j < 32; j++) {
+						if (((gt.self[i] & (1 << j)) != 0) || ((gt.opponent[i] & (1 << j)) != 0)) {
+							n++
+						}
+					}
+				}
+				return n
+			}
+			var scoreTable = [
+				 67, -12, -13,  16,  16, -13, -12,  67,
+				-12,  -3,  -2, -15, -15,  -2,  -3, -12,
+				-13,  -2, -18,  -7,  -7, -18,  -2, -13,
+				 16, -15,  -7,  -9,  -9,  -7, -15,  16,
+				 16, -15,  -7,  -9,  -9,  -7, -15,  16,
+				-13,  -2, -18,  -7,  -7, -18,  -2, -13,
+				-12,  -3,  -2, -15, -15,  -2,  -3, -12,
+				 67, -12, -13,  16,  16, -13, -12,  67
+			], openTable = [
+				 16, -31,  -3, -10, -10,  -3, -31,  16,
+				-31, -45, -32, -22, -22, -32, -45, -31,
+				 -3, -32, -13, -13, -13, -13, -32,  -3,
+				-10, -22, -13, -18, -18, -13, -22, -10,
+				-10, -22, -13, -18, -18, -13, -22, -10,
+				 -3, -32, -13, -13, -13, -13, -32,  -3,
+				-31, -45, -32, -22, -22, -32, -45, -31,
+				 16, -31,  -3, -10, -10,  -3, -31,  16
+			], stableScore = 67
+			function calcScore(gt) {
+				if (gt.depth != -1) {
+					var i, j, k, sum = 0
+					for (i = 0; i < 2; i++) {
+						for (j = 0; j < 32; j++) {
+							k = ((32 * i) + j)
+							if ((gt.state[k] & STABLE) == STABLE) {
+								if ((gt.self[i] & (1 << j)) != 0) {
+									sum += stableScore
+								} else {
+									sum -= stableScore
+								}
+							} else if ((gt.self[i] & (1 << j)) != 0) {
+								sum += (scoreTable[k] + (openTable[k] * (gt.state[k] & OPEN)))
+							} else if ((gt.opponent[i] & (1 << j)) != 0) {
+								sum -= (scoreTable[k] + (openTable[k] * (gt.state[k] & OPEN)))
+							}
+						}
+					}
+					gt.depth = -1
+					gt.alpha = sum
+				}
+				return gt.alpha
+			}
+			function negaMax(gt, depth, alpha, beta) {
+				var i, move, score, max
+				if (gt.depth == depth) {
+					if (gt.alpha >= beta) {
+						return gt.alpha
+					}
+					if (gt.beta <= alpha) {
+						return gt.beta
+					}
+				} else {
+					gt.depth = depth
+					gt.alpha = (- Infinity)
+					gt.beta = Infinity
+				}
+				makeList(gt)
+				i = gt.list.length
+				max = (- Infinity)
+				do {
+					i--
+					move = getMove(gt, i)
+					score = (- ((depth > 0)
+						? negaMax(move, (depth - 1), (- beta), (- alpha))
+						: calcScore(move)))
+					if (score > max) {
+						if ((i + 1) < gt.list.length) {
+							gt.list.splice(i, 1)
+							gt.list.push(move)
+						}
+						if (score >= beta) {
+							gt.alpha = score
+							return score
+						} else {
+							max = score
+						}
+					}
+				} while (i > 0)
+				gt.beta = max
+				return max
+			}
+			function setStoneByAI(gt, depth) {
+				var count, f, score, start, spend
+				start = Date.now()
+				count = countStones(gt)
+				if ((count + depth) > 64) {
+					depth = (64 - count)
+				}
+				for (;;) {
+					f = Number.MIN_SAFE_INTEGER
+					do {
+						score = negaMax(gt, depth, f, (f + 1))
+						f = ((score <= f) ? (score - 1) : score)
+					} while (gt.alpha < gt.beta)
+					spend = (Date.now() - start)
+					console.log(`${count}, ${depth}, ${score}, ${spend}ms`)
+					if ((spend < 150) && ((count + depth) < 64)) {
+						depth++
+					} else {
+						break
+					}
+				}
+				return gt.list.pop()
+			}
+			var canvas = document.querySelector("canvas"), ctx = canvas.getContext("2d")
+			function highlightMoves(gt) {
+				var x, y
+				getMoves(gt.self, gt.opponent)
+				ctx.fillStyle = "yellow"
+				for (x = 0; x < 8; x++) {
+					for (y = 0; y < 8; y++) {
+						if ((moves[x >> 2] & (1 << ((8 * (x & 3)) + y))) != 0) {
+							ctx.fillRect((50 * x), (50 * y), 50, 50)
+						}
+					}
+				}
+			}
+			function highlightDefiniteStones(gt) {
+				var x, y
+				ctx.fillStyle = "red"
+				for (x = 0; x < 8; x++) {
+					for (y = 0; y < 8; y++) {
+						if ((gt.state[(8 * x) + y] & STABLE) == STABLE) {
+							ctx.fillRect((50 * x), (50 * y), 50, 50)
+						}
+					}
+				}
+			}
+			function drawStones(board) {
+				var x, y
+				for (x = 0; x < 8; x++) {
+					for (y = 0; y < 8; y++) {
+						if ((board[x >> 2] & (1 << ((8 * (x & 3)) + y))) != 0) {
+							ctx.beginPath()
+							ctx.arc(((50 * x) + 25), ((50 * y) + 25), 23, 0, (2 * Math.PI))
+							ctx.closePath()
+							ctx.fill()
+						}
+					}
+				}
+			}
+			const COLOR_BAR = ["black", "white"]
+			function drawBoard(gt) {
+				ctx.clearRect(0, 0, 400, 400)
+				highlightMoves(gt)
+				highlightDefiniteStones(gt)
+				ctx.fillStyle = COLOR_BAR[gt.color]
+				drawStones(gt.self)
+				ctx.fillStyle = COLOR_BAR[1 - gt.color]
+				drawStones(gt.opponent)
+			}
+			GameTree.log = []
+			function setStoneByHuman(gt, x, y) {
+				var move
+				makeList(gt)
+				getMoves(gt.self, gt.opponent)
+				if ((moves[0] == 0) && (moves[1] == 0)) {
+					move = gt.list[0]
+				} else {
+					var i = (x >> 2), ref = (1 << ((8 * (x & 3)) + y))
+					if ((moves[i] & ref) != 0) {
+						var j = gt.list.length
+						for (;;) {
+							j--
+							move = getMove(gt, j)
+							if ((move.opponent[i] & ref) != 0) {
+								break
+							}
+						}
+					} else {
+						return
+					}
+				}
+				gt.list = null
+				gt.depth = -2
+				GameTree.log.push(gt)
+				return move
+			}
+			var $gameTree$ = initialGameTree()
+			drawBoard($gameTree$)
+			canvas.addEventListener("click", function(e) {
+				var res = setStoneByHuman($gameTree$, Math.floor(0.02 * e.x), Math.floor(0.02 * e.y))
+				if (res) {
+					$gameTree$ = setStoneByAI(res, Math.max(res.depth, 0))
+					drawBoard($gameTree$)
+				}
+			})
+			document.getElementById("undo").addEventListener("click", function() {
+				if (GameTree.log.length > 0) {
+					$gameTree$ = GameTree.log.pop()
+					drawBoard($gameTree$)
+				}
+			})
+			var userColor = document.getElementById("user-color")
+			document.getElementById("reset").addEventListener("click", function() {
+				GameTree.log = []
+				$gameTree$ = initialGameTree()
+				if (window.confirm("Do you use black?")) {
+					userColor.textContent = "Black"
+				} else {
+					$gameTree$ = setStoneByAI($gameTree$, 1)
+					userColor.textContent = "White"
+				}
+				drawBoard($gameTree$)
+			})
+			console.log("stone, ply-depth, score, time")
+		</script>
+	</body>
+</html>
