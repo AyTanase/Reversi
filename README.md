@@ -1,3 +1,3 @@
 # Reversi
 
-Simple reversi AI
+Simple Reversi AI
