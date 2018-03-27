@@ -2,7 +2,8 @@
 <html>
 	<head>
 		<meta charset="utf-8">
-		<title>Reversi Hybrid AI</title>
+		<title>Hybrid Reversi AI</title>
+		<style type="text/css">html{-webkit-user-select:none;}</style>
 	</head>
 	<body>
 		<canvas width=400 height=400 style="background-color:green;"></canvas>
@@ -22,6 +23,7 @@
 				this.depth = -2
 				this.alpha = (- Infinity)
 				this.beta = Infinity
+				this.cut = false
 				this.self.set(self)
 				this.opponent.set(opponent)
 				this.state.set(state)
@@ -300,24 +302,24 @@
 				return n
 			}
 			var scoreTable = [
-				 67, -12, -13,  16,  16, -13, -12,  67,
-				-12,  -3,  -2, -15, -15,  -2,  -3, -12,
-				-13,  -2, -18,  -7,  -7, -18,  -2, -13,
-				 16, -15,  -7,  -9,  -9,  -7, -15,  16,
-				 16, -15,  -7,  -9,  -9,  -7, -15,  16,
-				-13,  -2, -18,  -7,  -7, -18,  -2, -13,
-				-12,  -3,  -2, -15, -15,  -2,  -3, -12,
-				 67, -12, -13,  16,  16, -13, -12,  67
+				 36,  20, -23,  22,  22, -23,  20,  36,
+				 20,  30, -29,  -1,  -1, -29,  30,  20,
+				-23, -29,   8,   8,   8,   8, -29, -23,
+				 22,  -1,   8,  -7,  -7,   8,  -1,  22,
+				 22,  -1,   8,  -7,  -7,   8,  -1,  22,
+				-23, -29,   8,   8,   8,   8, -29, -23,
+				 20,  30, -29,  -1,  -1, -29,  30,  20,
+				 36,  20, -23,  22,  22, -23,  20,  36
 			], openTable = [
-				 16, -31,  -3, -10, -10,  -3, -31,  16,
-				-31, -45, -32, -22, -22, -32, -45, -31,
-				 -3, -32, -13, -13, -13, -13, -32,  -3,
-				-10, -22, -13, -18, -18, -13, -22, -10,
-				-10, -22, -13, -18, -18, -13, -22, -10,
-				 -3, -32, -13, -13, -13, -13, -32,  -3,
-				-31, -45, -32, -22, -22, -32, -45, -31,
-				 16, -31,  -3, -10, -10,  -3, -31,  16
-			], stableScore = 67
+				-23, -14,   3, -13, -13,   3, -14, -23,
+				-14, -45,  -8, -12, -12,  -8, -45, -14,
+				  3,  -8, -11, -14, -14, -11,  -8,   3,
+				-13, -12, -14,   0,   0, -14, -12, -13,
+				-13, -12, -14,   0,   0, -14, -12, -13,
+				  3,  -8, -11, -14, -14, -11,  -8,   3,
+				-14, -45,  -8, -12, -12,  -8, -45, -14,
+				-23, -14,   3, -13, -13,   3, -14, -23
+			], stableScore = 36
 			function calcScore(gt) {
 				if (gt.depth != -1) {
 					var i, j, k, sum = 0
@@ -342,6 +344,7 @@
 				}
 				return gt.alpha
 			}
+			var cutoff = 256
 			function negaMax(gt, depth, alpha, beta) {
 				var i, move, score, max
 				if (gt.depth == depth) {
@@ -362,19 +365,23 @@
 				do {
 					i--
 					move = getMove(gt, i)
-					score = (- ((depth > 0)
-						? negaMax(move, (depth - 1), (- beta), (- alpha))
-						: calcScore(move)))
-					if (score > max) {
-						if ((i + 1) < gt.list.length) {
-							gt.list.splice(i, 1)
-							gt.list.push(move)
-						}
-						if (score >= beta) {
-							gt.alpha = score
-							return score
-						} else {
-							max = score
+					if (!move.cut) {
+						score = (- ((depth > 0)
+							? negaMax(move, (depth - 1), (- beta), (- alpha))
+							: calcScore(move)))
+						if (score > max) {
+							if ((i + 1) < gt.list.length) {
+								gt.list.splice(i, 1)
+								gt.list.push(move)
+							}
+							if (score >= beta) {
+								gt.alpha = score
+								return score
+							} else {
+								max = score
+							}
+						} else if ((score + cutoff) <= max) {
+							move.cut = true
 						}
 					}
 				} while (i > 0)
@@ -451,7 +458,6 @@
 				ctx.fillStyle = COLOR_BAR[1 - gt.color]
 				drawStones(gt.opponent)
 			}
-			GameTree.log = []
 			function setStoneByHuman(gt, x, y) {
 				var move
 				makeList(gt)
@@ -478,8 +484,7 @@
 				GameTree.log.push(gt)
 				return move
 			}
-			var $gameTree$ = initialGameTree()
-			drawBoard($gameTree$)
+			var $gameTree$
 			canvas.addEventListener("click", function(e) {
 				var res = setStoneByHuman($gameTree$, Math.floor(0.02 * e.x), Math.floor(0.02 * e.y))
 				if (res) {
@@ -494,18 +499,23 @@
 				}
 			})
 			var userColor = document.getElementById("user-color")
-			document.getElementById("reset").addEventListener("click", function() {
+			function initGame(color) {
 				GameTree.log = []
 				$gameTree$ = initialGameTree()
-				if (window.confirm("Do you use black?")) {
+				console.log("stone, ply-depth, score, time")
+				if (color == BLACK) {
 					userColor.textContent = "Black"
 				} else {
 					$gameTree$ = setStoneByAI($gameTree$, 1)
 					userColor.textContent = "White"
 				}
 				drawBoard($gameTree$)
+			}
+			document.getElementById("reset").addEventListener("click", function() {
+				console.clear()
+				initGame(window.confirm("Do you use black?") ? BLACK : WHITE)
 			})
-			console.log("stone, ply-depth, score, time")
+			initGame(BLACK)
 		</script>
 	</body>
 </html>
