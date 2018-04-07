@@ -3,10 +3,14 @@
 	<head>
 		<meta charset="utf-8">
 		<title>Hybrid Reversi AI</title>
-		<style type="text/css">html{-webkit-user-select:none;}</style>
+		<style type="text/css">
+			html { -webkit-user-select: none }
+			canvas { display: block; margin: 5px auto; background-color: green }
+			div { width: fit-content; margin: auto }
+		</style>
 	</head>
 	<body>
-		<canvas width=400 height=400 style="background-color:green;"></canvas>
+		<canvas width=400 height=400></canvas>
 		<div>
 			<button id="undo" type="button">Undo</button>
 			<button id="reset" type="button">Reset</button>
@@ -94,7 +98,7 @@
 			var cellList = (new Array(64))
 			for (let x = 0; x < 8; x++) {
 				for (let y = 0; y < 8; y++) {
-					cellList[(8 * x) + y] = { x: x, y: y, alpha: Infinity }
+					cellList[(8 * x) + y] = { x: x, y: y }
 				}
 			}
 			function makeList(gt) {
@@ -300,25 +304,26 @@
 				}
 				return n
 			}
-			var scoreTable = [
-				 64, -23, -30,  21,  21, -30, -23,  64,
-				-23,  -8, -21, -47, -47, -21,  -8, -23,
-				-30, -21, -23,  13,  13, -23, -21, -30,
-				 21, -47,  13, -27, -27,  13, -47,  21,
-				 21, -47,  13, -27, -27,  13, -47,  21,
-				-30, -21, -23,  13,  13, -23, -21, -30,
-				-23,  -8, -21, -47, -47, -21,  -8, -23,
-				 64, -23, -30,  21,  21, -30, -23,  64
-			], openTable = [
-				  0, -20,  -3,   0,   0,  -3, -20,   0,
-				-20, -49, -27, -15, -15, -27, -49, -20,
-				 -3, -27,  -5, -26, -26,  -5, -27,  -3,
-				  0, -15, -26,   1,   1, -26, -15,   0,
-				  0, -15, -26,   1,   1, -26, -15,   0,
-				 -3, -27,  -5, -26, -26,  -5, -27,  -3,
-				-20, -49, -27, -15, -15, -27, -49, -20,
-				  0, -20,  -3,   0,   0,  -3, -20,   0
-			], stableScore = 64
+			var indexBoard = [
+				0, 1, 2, 4, 4, 2, 1, 0,
+				1, 3, 5, 6, 6, 5, 3, 1,
+				2, 5, 7, 8, 8, 7, 5, 2,
+				4, 6, 8, 9, 9, 8, 6, 4,
+				4, 6, 8, 9, 9, 8, 6, 4,
+				2, 5, 7, 8, 8, 7, 5, 2,
+				1, 3, 5, 6, 6, 5, 3, 1,
+				0, 1, 2, 4, 4, 2, 1, 0
+			]
+			function expandTable(res) {
+				var table = (new Array(64))
+				for (var i = 0; i < 64; i++) {
+					table[i] = res[indexBoard[i]]
+				}
+				return table
+			}
+			var scoreTable = expandTable([64, -71, -73, 34, 12, -18, -27, 21, 19, 1]),
+				openTable = expandTable([0, -4, 23, -106, -51, -36, -27, -36, -34, -28]),
+				stableScore = 64
 			function calcScore(gt) {
 				if (gt.depth != -1) {
 					var i, j, k, sum = 0
@@ -343,11 +348,8 @@
 				}
 				return gt.alpha
 			}
-			function sortFunc(a, b) {
-				return (b.alpha - a.alpha)
-			}
 			function negaMax(gt, depth, alpha, beta) {
-				var i, move, score, max
+				var i, j, move, score, max, tmp
 				if (gt.depth == depth) {
 					if (gt.alpha >= beta) {
 						return gt.alpha
@@ -375,43 +377,96 @@
 						score = (- calcScore(move))
 					}
 					if (score > max) {
-						if (score >= beta) {
+						if ((depth == 0) || (score >= beta)) {
 							if ((i + 1) < gt.list.length) {
-								if (depth > 0) {
-									gt.list.splice(i, 1)
-									gt.list.push(move)
-								} else {
-									gt.list.sort(sortFunc)
-								}
+								gt.list.splice(i, 1)
+								gt.list.push(move)
 							}
-							gt.alpha = score
-							return score
-						} else {
-							max = score
+							if (score >= beta) {
+								gt.alpha = score
+								return score
+							}
+						}
+						max = score
+					} else if (depth == 0) {
+						j = i
+						for (;;) {
+							tmp = gt.list[j + 1]
+							if (tmp.alpha > move.alpha) {
+								gt.list[j] = tmp
+								j++
+							} else {
+								gt.list[j] = move
+								break
+							}
 						}
 					}
 				} while (i > 0)
-				if (depth == 0) {
-					gt.list.sort(sortFunc)
-				}
 				gt.beta = max
 				return max
 			}
+			function mtdf(gt, depth, f) {
+				var score
+				do {
+					score = negaMax(gt, depth, f, (f + 1))
+					f = ((score <= f) ? (score - 1) : score)
+				} while (gt.alpha < gt.beta)
+				return score
+			}
+			GameTree.hashTable = (new Map())
+			function shareTree(gt, depth) {
+				var i = gt.list.length, move, hash, tmp, tmp1, tmp2
+				do {
+					i--
+					move = gt.list[i]
+					if (depth > 0) {
+						if (move.list) {
+							shareTree(move, (depth - 1))
+						}
+					} else if (move.state) {
+						hash = String.fromCharCode((move.self[0] & 0xFFFF), (move.self[0] >>> 16),
+							(move.self[1] & 0xFFFF), (move.self[1] >>> 16), (move.opponent[0] & 0xFFFF),
+							(move.opponent[0] >>> 16), (move.opponent[1] & 0xFFFF), (move.opponent[1] >>> 16))
+						tmp = GameTree.hashTable.get(hash)
+						if (tmp) {
+							if (tmp == move) {
+								return
+							} else if (!move.list) {
+								gt.list[i] = tmp
+								continue
+							} else if (tmp.list) {
+								tmp1 = tmp.list[tmp.list.length - 1]
+								tmp2 = move.list[move.list.length - 1]
+								if ((tmp1.depth == tmp2.depth)
+										? ((tmp1.alpha == tmp2.alpha)
+											? (tmp1.beta <= tmp2.beta)
+											: (tmp1.alpha > tmp2.alpha))
+										: (tmp1.depth > tmp2.depth)) {
+									gt.list[i] = tmp
+									continue
+								}
+							}
+							tmp.list = move.list
+						}
+						GameTree.hashTable.set(hash, move)
+					}
+				} while (i > 0)
+			}
 			function setStoneByAI(gt, depth) {
-				var count, f, score, start, spend
+				var count, score, start, spend
 				start = Date.now()
 				count = countStones(gt)
 				if ((count + depth) > 64) {
 					depth = (64 - count)
 				}
 				for (;;) {
-					f = Number.MIN_SAFE_INTEGER
-					do {
-						score = negaMax(gt, depth, f, (f + 1))
-						f = ((score <= f) ? (score - 1) : score)
-					} while (gt.alpha < gt.beta)
+					if ((depth == 3) || (depth == 4)) {
+						GameTree.hashTable.clear()
+						shareTree(gt, (depth - 1))
+					}
+					score = mtdf(gt, depth, Number.MIN_SAFE_INTEGER)
 					spend = (Date.now() - start)
-					if ((spend < 150) && (depth < (2 * (64 - count)))) {
+					if ((spend < 200) && (depth < (2 * (64 - count)))) {
 						depth++
 					} else {
 						break
@@ -495,7 +550,7 @@
 			}
 			var $gameTree$
 			canvas.addEventListener("click", function(e) {
-				var res = setStoneByHuman($gameTree$, Math.floor(0.02 * e.x), Math.floor(0.02 * e.y))
+				var res = setStoneByHuman($gameTree$, Math.floor(0.02 * e.offsetX), Math.floor(0.02 * e.offsetY))
 				if (res) {
 					$gameTree$ = setStoneByAI(res, 0)
 					drawBoard($gameTree$)
