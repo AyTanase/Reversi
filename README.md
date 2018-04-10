@@ -10,5 +10,5 @@ hybrid.html:
 
 compare_algorithm.html:
 	Not a Reversi AI
-	Compare Mini-Max, Alpha-Beta, MTD(f) Method
+	Compare Alpha-Beta and MTD(f) Method
 	Select an algorithm and click canvas.

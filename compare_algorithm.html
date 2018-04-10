@@ -12,10 +12,6 @@
 		<div>
 			<span>Searching Algorithm:</span>
 			<span>
-				<input id="mini-max" type="radio" name="method">
-				<label for="mini-max">Mini Max</label>
-			</span>
-			<span>
 				<input id="alpha-beta" type="radio" name="method">
 				<label for="alpha-beta">Alpha Beta</label>
 			</span>
@@ -24,7 +20,7 @@
 				<label for="mtd-f">MTD(f)</label>
 			</span>
 		</div>
-		<canvas width=512 height=512></canvas>
+		<canvas width=1056 height=528></canvas>
 		<script type="text/javascript">
 			"use strict"
 			function makeTree() {
@@ -35,49 +31,53 @@
 							cdr: makeNode((depth - 1), (width >>> 1), (x + width), (y + 80)) }
 						: { x: x, y: y, score: Math.floor(32 * ((2 * Math.random()) - 1)) })
 				}
-				return makeNode(6, 128, 256, 16)
+				return makeNode(6, 256, 528, 16)
 			}
 			var canvas = document.querySelector("canvas"), ctx = canvas.getContext("2d")
 			function drawTree(tree) {
-				function drawNode(node) {
+				function drawNode(node, car) {
 					if (node.car) {
 						ctx.moveTo(node.x, node.y)
 						ctx.lineTo(node.car.x, node.car.y)
 						ctx.moveTo(node.x, node.y)
 						ctx.lineTo(node.cdr.x, node.cdr.y)
-						drawNode(node.car)
-						drawNode(node.cdr)
+						drawNode(node.car, true)
+						drawNode(node.cdr, false)
+					} else {
+						ctx.fillText(`${node.score}`, node.x, (node.y + (car ? 8.5 : 24.5)))
 					}
 				}
 				ctx.strokeStyle = "white"
+				ctx.fillStyle = "white"
+				ctx.font = "16px Consolas"
+				ctx.textAlign = "center"
+				ctx.textBaseline = "middle"
 				ctx.beginPath()
-				drawNode(tree)
+				drawNode(tree, true)
 				ctx.stroke()
 			}
-			function* recurseNegaMax(func, node, child, alpha, beta) {
-					ctx.strokeStyle = "yellow"
-					ctx.beginPath()
-					ctx.moveTo(node.x, node.y)
-					ctx.lineTo(child.x, child.y)
-					ctx.stroke()
-					yield
-					yield* func(child, alpha, beta)
+			var counter
+			function writeCount() {
+				ctx.fillStyle = "yellow"
+				ctx.font = "30px Consolas"
+				ctx.textAlign = "center"
+				ctx.textBaseline = "middle"
+				ctx.clearRect(0, 0, 50, 50)
+				ctx.fillText(`${counter}`, 25, 25)
 			}
-			function* negaMax(node) {
-				function* recurse(child) {
-					highlightPath(node, child)
-					yield
-					yield* negaMax(child)
-				}
-				if (node.car) {
-					var score
-					yield* recurseNegaMax(negaMax, node, node.car)
-					yield* recurseNegaMax(negaMax, node, node.cdr)
-					node.score = (- Math.min(node.car.score, node.cdr.score))
-				}
-			}
-			var alphaMap = (new Map()), betaMap = (new Map())
+			var alphaMap = (new Map()), betaMap = (new Map()), color
 			function* memoAlphaBeta(node, alpha=(- Infinity), beta=Infinity) {
+				function* recurse(child, alpha, beta) {
+						ctx.strokeStyle = color
+						ctx.beginPath()
+						ctx.moveTo(node.x, node.y)
+						ctx.lineTo(child.x, child.y)
+						ctx.stroke()
+						counter++
+						writeCount()
+						yield
+						yield* memoAlphaBeta(child, alpha, beta)
+				}
 				if (node.car) {
 					var score
 					score = alphaMap.get(node)
@@ -94,7 +94,7 @@
 							if (score < beta) {
 								beta = score
 							}
-							yield* recurseNegaMax(memoAlphaBeta, node, node.car, (- beta), (- alpha))
+							yield* recurse(node.car, (- beta), (- alpha))
 							score = (- node.car.score)
 							if (score >= beta) {
 								node.score = score
@@ -103,7 +103,7 @@
 								if (score > alpha) {
 									alpha = score
 								}
-								yield* recurseNegaMax(memoAlphaBeta, node, node.cdr, (- beta), (- alpha))
+								yield* recurse(node.cdr, (- beta), (- alpha))
 								score = (- Math.min(node.car.score, node.cdr.score))
 								node.score = score
 								if (score >= beta) {
@@ -119,6 +119,7 @@
 					}
 				}
 			}
+			memoAlphaBeta.color = "yellow"
 			function* mtdf(tree) {
 				var f = 0, alpha = (- Infinity), beta = Infinity
 				do {
@@ -131,19 +132,22 @@
 						f = tree.score
 					}
 				} while (alpha < beta)
-				window.alert("MTD(f) Search Finished")
 			}
+			mtdf.color = "red"
 			var makeEventListener = (function() {
 				var tree = makeTree(), gen
 				return function(func) {
 					return function() {
-						ctx.clearRect(0, 0, 512, 512)
-						drawTree(tree)
 						if (!gen) {
+							tree = makeTree()
+							drawTree(tree)
 							canvas.addEventListener("click", function() {
 								gen.next()
 							})
 						}
+						counter = 0
+						writeCount()
+						color = func.color
 						alphaMap.clear()
 						betaMap.clear()
 						gen = func(tree)
@@ -153,7 +157,6 @@
 			function setEventListener(id, func) {
 				document.getElementById(id).addEventListener("change", makeEventListener(func))
 			}
-			setEventListener("mini-max", negaMax)
 			setEventListener("alpha-beta", memoAlphaBeta)
 			setEventListener("mtd-f", mtdf)
 		</script>
