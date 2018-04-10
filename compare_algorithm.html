@@ -5,7 +5,7 @@
 		<title>Searching Method</title>
 		<style type="text/css">
 			html { -webkit-user-select: none }
-			canvas { border: 1px solid; background-color: #404040 }
+			canvas { background-color: #404040 }
 		</style>
 	</head>
 	<body>
@@ -33,7 +33,7 @@
 				}
 				return makeNode(6, 256, 528, 16)
 			}
-			var canvas = document.querySelector("canvas"), ctx = canvas.getContext("2d")
+			const canvas = document.querySelector("canvas"), ctx = canvas.getContext("2d")
 			function drawTree(tree) {
 				function drawNode(node, car) {
 					if (node.car) {
@@ -56,72 +56,65 @@
 				drawNode(tree, true)
 				ctx.stroke()
 			}
-			var counter
+			var $counter$
 			function writeCount() {
 				ctx.fillStyle = "yellow"
 				ctx.font = "30px Consolas"
 				ctx.textAlign = "center"
 				ctx.textBaseline = "middle"
 				ctx.clearRect(0, 0, 50, 50)
-				ctx.fillText(`${counter}`, 25, 25)
+				ctx.fillText(`${$counter$}`, 25, 25)
 			}
-			var alphaMap = (new Map()), betaMap = (new Map()), color
-			function* memoAlphaBeta(node, alpha=(- Infinity), beta=Infinity) {
+			function* alphaBeta(node, alpha=(- Infinity), beta=Infinity, func=alphaBeta) {
 				function* recurse(child, alpha, beta) {
-						ctx.strokeStyle = color
-						ctx.beginPath()
-						ctx.moveTo(node.x, node.y)
-						ctx.lineTo(child.x, child.y)
-						ctx.stroke()
-						counter++
-						writeCount()
-						yield
-						yield* memoAlphaBeta(child, alpha, beta)
+					ctx.strokeStyle = func.color
+					ctx.beginPath()
+					ctx.moveTo(node.x, node.y)
+					ctx.lineTo(child.x, child.y)
+					ctx.stroke()
+					$counter$++
+					writeCount()
+					yield
+					yield* func(child, alpha, beta)
 				}
 				if (node.car) {
 					var score
-					score = alphaMap.get(node)
+					yield* recurse(node.car, (- beta), (- alpha))
+					score = (- node.car.score)
 					if (score >= beta) {
 						node.score = score
 					} else {
-						if (score > alpha) {
-							alpha = score
-						}
-						score = betaMap.get(node)
-						if (score <= alpha) {
-							node.score = score
+						yield* recurse(node.cdr, (- beta), (- Math.max(alpha, score)))
+						node.score = Math.max(score, (- node.cdr.score))
+					}
+				}
+			}
+			alphaBeta.color = "yellow"
+			var alphaMap = (new Map()), betaMap = (new Map())
+			function* memoAlphaBeta(node, alpha, beta) {
+				var score
+				score = alphaMap.get(node)
+				if (score >= beta) {
+					node.score = score
+				} else {
+					score = betaMap.get(node)
+					if (score <= alpha) {
+						node.score = score
+					} else {
+						yield* alphaBeta(node, alpha, beta, memoAlphaBeta)
+						if (node.score <= alpha) {
+							betaMap.set(node, node.score)
 						} else {
-							if (score < beta) {
-								beta = score
-							}
-							yield* recurse(node.car, (- beta), (- alpha))
-							score = (- node.car.score)
-							if (score >= beta) {
-								node.score = score
-								alphaMap.set(node, score)
-							} else {
-								if (score > alpha) {
-									alpha = score
-								}
-								yield* recurse(node.cdr, (- beta), (- alpha))
-								score = (- Math.min(node.car.score, node.cdr.score))
-								node.score = score
-								if (score >= beta) {
-									alphaMap.set(node, score)
-								} else {
-									if (score > alpha) {
-										alphaMap.set(node, score)
-									}
-									betaMap.set(node, score)
-								}
-							}
+							alphaMap.set(node, node.score)
 						}
 					}
 				}
 			}
-			memoAlphaBeta.color = "yellow"
+			memoAlphaBeta.color = "red"
 			function* mtdf(tree) {
 				var f = 0, alpha = (- Infinity), beta = Infinity
+				alphaMap.clear()
+				betaMap.clear()
 				do {
 					yield* memoAlphaBeta(tree, f, (f + 1))
 					if (tree.score <= f) {
@@ -133,31 +126,20 @@
 					}
 				} while (alpha < beta)
 			}
-			mtdf.color = "red"
-			var makeEventListener = (function() {
-				var tree = makeTree(), gen
-				return function(func) {
-					return function() {
-						if (!gen) {
-							tree = makeTree()
-							drawTree(tree)
-							canvas.addEventListener("click", function() {
-								gen.next()
-							})
-						}
-						counter = 0
-						writeCount()
-						color = func.color
-						alphaMap.clear()
-						betaMap.clear()
-						gen = func(tree)
-					}
-				}
-			})()
+			var $tree$, $gen$
 			function setEventListener(id, func) {
-				document.getElementById(id).addEventListener("change", makeEventListener(func))
+				document.getElementById(id).addEventListener("change", function() {
+					if (!$tree$) {
+						$tree$ = makeTree()
+						drawTree($tree$)
+						canvas.addEventListener("click", (() => $gen$.next()))
+					}
+					$counter$ = 0
+					writeCount()
+					$gen$ = func($tree$)
+				})
 			}
-			setEventListener("alpha-beta", memoAlphaBeta)
+			setEventListener("alpha-beta", alphaBeta)
 			setEventListener("mtd-f", mtdf)
 		</script>
 	</body>
