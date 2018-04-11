@@ -57,13 +57,13 @@
 				ctx.stroke()
 			}
 			var $counter$
-			function writeCount() {
-				ctx.fillStyle = "yellow"
+			function writeCount(func) {
+				ctx.fillStyle = func.color
 				ctx.font = "30px Consolas"
 				ctx.textAlign = "center"
 				ctx.textBaseline = "middle"
-				ctx.clearRect(0, 0, 50, 50)
-				ctx.fillText(`${$counter$}`, 25, 25)
+				ctx.clearRect(func.offset, 0, 50, 50)
+				ctx.fillText(`${$counter$}`, (func.offset + 25), 25)
 			}
 			function* alphaBeta(node, alpha=(- Infinity), beta=Infinity, func=alphaBeta) {
 				function* recurse(child, alpha, beta) {
@@ -73,7 +73,7 @@
 					ctx.lineTo(child.x, child.y)
 					ctx.stroke()
 					$counter$++
-					writeCount()
+					writeCount(func)
 					yield
 					yield* func(child, alpha, beta)
 				}
@@ -89,7 +89,6 @@
 					}
 				}
 			}
-			alphaBeta.color = "yellow"
 			var alphaMap = (new Map()), betaMap = (new Map())
 			function* memoAlphaBeta(node, alpha, beta) {
 				var score
@@ -110,7 +109,6 @@
 					}
 				}
 			}
-			memoAlphaBeta.color = "red"
 			function* mtdf(tree) {
 				var f = 0, alpha = (- Infinity), beta = Infinity
 				alphaMap.clear()
@@ -126,6 +124,12 @@
 					}
 				} while (alpha < beta)
 			}
+			alphaBeta.color = "yellow"
+			alphaBeta.offset = 0
+			memoAlphaBeta.color = "red"
+			memoAlphaBeta.offset = 50
+			mtdf.color = "red"
+			mtdf.offset = 50
 			var $tree$, $gen$
 			function setEventListener(id, func) {
 				document.getElementById(id).addEventListener("change", function() {
@@ -135,7 +139,7 @@
 						canvas.addEventListener("click", (() => $gen$.next()))
 					}
 					$counter$ = 0
-					writeCount()
+					writeCount(func)
 					$gen$ = func($tree$)
 				})
 			}
