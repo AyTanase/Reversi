@@ -133,7 +133,7 @@
 			}
 			var self = (new Uint32Array(2)), opponent = (new Uint32Array(2)),
 				potential = (new Uint32Array(2)), moves = (new Uint32Array(2))
-			// Calculate legal moves and map them to variable "moves"
+			// Calculate the legal moves and map them to the variable "moves"
 			function getMoves(origSelf, origOpponent) {
 				var mask, shiftWidth
 				function leftShift(arr) {
@@ -225,7 +225,7 @@
 			}
 			/*
 			set a stone in (x, y) of gt (it should be a legal move),
-			reverse stones, and return result node.
+			reverse stones, and return the result node.
 			No side effect
 			*/
 			function reverseStones(gt, x, y) {
@@ -379,19 +379,19 @@
 				}
 			}
 			/*
-			Set stone to (x, y) of gt (it should be a legal move) and check all conditions
-			and return successing state.
+			Set a stone to (x, y) of gt (it should be a legal move) and check all conditions
+			and return the successing state.
 			No side effect
 			*/
 			function setStone(gt, x, y) {
 				var nt = reverseStones(gt, x, y), cell
-				// Update degree of opening
+				// Update the degree of opening
 				around(function(x, y) {
 					if ((x >= 0) && (y >= 0) && (x < 8) && (y < 8)) {
 						nt.state[(8 * x) + y]--
 					}
 				}, x, y)
-				// Check conditions relate to changed cells
+				// Check conditions relate to the changed cells
 				highCostStabilize(x, y, nt)
 				while (idx > 0) {
 					idx--
@@ -484,7 +484,7 @@
 						return gt.beta
 					}
 				} else {
-					// Update the depth
+					// Delete the last result and update the depth
 					gt.depth = depth
 					gt.alpha = (- Infinity)
 					gt.beta = Infinity
@@ -570,10 +570,10 @@
 								tmp1 = tmp.list[tmp.list.length - 1]
 								tmp2 = move.list[move.list.length - 1]
 								/*
-								Compare alpha value primarily.
-								If beta value is not Infinity,
+								Compare the alpha values primarily.
+								If a beta value is not Infinity,
 								a cutoff must have occured in negaMax(tmp|move, *, f, (f + 1)).
-								If alpha value is -Infinity, any cutoff did not occur.
+								If an alpha value is -Infinity, any cutoff did not occur.
 								*/
 								if ((tmp1.depth == tmp2.depth)
 										? ((tmp1.alpha == tmp2.alpha)
@@ -653,7 +653,7 @@
 			const COLOR_BAR = ["black", "white"]
 			function drawBoard(gt) {
 				ctx.clearRect(0, 0, 400, 400)
-				highlightMoves(gt) // Optinal
+				highlightMoves(gt) // Optional
 				highlightStableStones(gt) // Optional
 				ctx.fillStyle = COLOR_BAR[gt.color]
 				drawStones(gt.self)
