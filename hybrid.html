@@ -18,6 +18,88 @@
 		</div>
 		<script type="text/javascript">
 			"use strict"
+			/*
+			Variables:
+				gt: GameTree
+				x, y: Integer (if not bound, in [0, 8))
+			Functions:
+				function hasStone(board, x, y) {
+					return ((board[x >> 2] & (1 << ((8 * (x & 3)) + y))) != 0)
+				}
+				function xy2i(x, y) {
+					return ((8 * x) + y)
+				}
+				function inRange(x, y) {
+					return ((x >= 0) && (y >= 0) && (x < 8) && (y < 8))
+				}
+				function isEmpty(gt, x, y) {
+					return ((inRange(x, y) && (!hasStone(gt.self, x, y)) && (!hasStone(gt.opponent, x, y))) ? 1 : 0)
+				}
+				function isStable(gt, x, y) {
+					return ((!inRange(x, y)) || ((gt.state[xy2i(x, y)] & STABLE) == STABLE))
+				}
+				function lineIsFull(gt, x, y, dirX, dirY) {
+					function checkOneDirection(x, y, dirX, dirY) {
+						return ((isEmpty(gt, x, y) == 0)
+							? checkOneDirection((x + dirX), (y + dirY), dirX, dirY)
+							: (!inRange(x, y)))
+					}
+					return (checkOneDirection(x, y, dirX, dirY) && checkOneDirection(x, y, (- dirX), (- dirY)))
+				}
+				function bothNeigborsAreStable(gt, x, y, dirX, dirY) {
+					return (isStable(gt, (x - dirX), (y - dirY)) && isStable(gt, (x + dirX), (y + dirY)))
+				}
+				function strongConditionForStability(gt, x, y, dirX, dirY) {
+					return ((isEmpty(gt, x, y) == 0)
+						&& (lineIsFull(gt, x, y, dirX, dirY)
+							|| bothNeigborsAreStable(gt, x, y, dirX, dirY)))
+				}
+				function weakConditionForStability(gt, x, y, dirX, dirY) {
+					function hasStableStone(board, x, y) {
+						return ((!inRange(x, y)) || (hasStone(board, x, y) && isStable(gt, x, y)))
+					}
+					function nextToStableFriend(board) {
+						return (hasStone(board, x, y)
+							&& (hasStableStone(board, (x + dirX), (y + dirY))
+								|| hasStableStone(board, (x - dirX), (y - dirY))))
+					}
+					return ((isEmpty(gt, x, y) == 0)
+						&& (lineIsFull(gt, x, y, dirX, dirY)
+							|| bothNeigborsAreStable(gt, x, y, dirX, dirY)
+							|| nextToStableFriend(gt.self)
+							|| nextToStableFriend(gt.opponent)))
+				}
+
+			All of the following propositions should be always true.
+			-- About GameTree.color --
+				"gt.color == BLACK" means "the black agent's turn"
+				"gt.color == WHITE" means "the white agent's turn"
+			-- About GameTree.self --
+				hasStone(gt.self, x, y)
+					<=> The turn player's stone is in (x, y) of the board
+			-- About GameTree.opponent --
+				hasStone(gt.opponent, x, y)
+					<=> The opponent of the turn player has a stone in (x, y) of the board
+			-- About GameTree.state --
+				(gt.state[xy2i(x, y)] & OPEN) ==
+					(isEmpty((x - 1), (y - 1)) + isEmpty((x - 1), y)
+						+ isEmpty((x - 1), (y + 1)) + isEmpty(x, (y - 1))
+						+ isEmpty(x, (y + 1)) + isEmpty((x + 1), (y - 1))
+						+ isEmpty((x + 1), y) + isEmpty((x + 1), (y + 1)))
+				strongConditionForStability(gt, x, y, 1, 0)
+					=> ((gt.state[xy2i(x, y)] & STABLE_0) != 0)
+				strongConditionForStability(gt, x, y, 1, 1)
+					=> ((gt.state[xy2i(x, y)] & STABLE_45) != 0)
+				strongConditionForStability(gt, x, y, 0, 1)
+					=> ((gt.state[xy2i(x, y)] & STABLE_90) != 0)
+				strongConditionForStability(gt, x, y, -1, 1)
+					=> ((gt.state[xy2i(x, y)] & STABLE_135) != 0)
+				isStable(gt, x, y) ==
+					(weakConditionForStability(gt, x, y, 1, 0)
+						&& weakConditionForStability(gt, x, y, 1, 1)
+						&& weakConditionForStability(gt, x, y, 0, 1)
+						&& weakConditionForStability(gt, x, y, -1, 1))
+			*/
 			function GameTree(color, self, opponent, state) {
 				this.color = color
 				this.self = (new Uint32Array(2))
@@ -31,6 +113,7 @@
 				this.opponent.set(opponent)
 				this.state.set(state)
 			}
+			// STABLE == (STABLE_0 | STABLE_45 | STABLE_90 | STABLE_135)
 			const BLACK = 0, WHITE = 1, OPEN = 15, STABLE_0 = 16,
 				STABLE_45 = 32, STABLE_90 = 64, STABLE_135 = 128, STABLE = 240,
 				INITIAL_BLACK = (new Uint32Array([0x10000000, 0x00000008])),
@@ -50,6 +133,7 @@
 			}
 			var self = (new Uint32Array(2)), opponent = (new Uint32Array(2)),
 				potential = (new Uint32Array(2)), moves = (new Uint32Array(2))
+			// Calculate legal moves and map them to variable "moves"
 			function getMoves(origSelf, origOpponent) {
 				var mask, shiftWidth
 				function leftShift(arr) {
@@ -101,6 +185,7 @@
 					cellList[(8 * x) + y] = { x: x, y: y }
 				}
 			}
+			// Force GameTree.list (moves list)
 			function makeList(gt) {
 				if (!gt.list) {
 					var i, j
@@ -109,12 +194,16 @@
 					for (i = 0; i < 2; i++) {
 						if (moves[i] != 0) {
 							for (j = 0; j < 32; j++) {
+								// x = ((4 * i) + (j >> 3)), y = (j & 7)
 								if ((moves[i] & (1 << j)) != 0) {
+									// Delay reversing and, instead, set the position where to set
+									// ((32 * i) + j) == ((8 * x) + y)
 									gt.list.push(cellList[(32 * i) + j])
 								}
 							}
 						}
 					}
+					// Pass
 					if (gt.list.length == 0) {
 						gt.list.push(new GameTree((1 - gt.color), gt.opponent, gt.self, gt.state))
 					}
@@ -134,6 +223,11 @@
 			for (let i = 0; i < 18; i++) {
 				changedList[i] = { x: 0, y: 0 }
 			}
+			/*
+			set a stone in (x, y) of gt (it should be a legal move),
+			reverse stones, and return result node.
+			No side effect
+			*/
 			function reverseStones(gt, x, y) {
 				var nt
 				function reverseOneDirection(dirX, dirY) {
@@ -171,8 +265,10 @@
 				around(reverseOneDirection, 0, 0)
 				return nt
 			}
+			// Corresponds to weakConditionForStability
 			function lowCostStabilize(x, y, gt) {
 				var board
+				// Corresponds to bothNeigborsAreStable and nextToStableFriend
 				function checkTwoDirection(dirX, dirY, flag) {
 					if ((gt.state[(8 * x) + y] & flag) != 0) {
 						return true
@@ -224,7 +320,9 @@
 				}
 			}
 			var stones = (new Uint32Array(2))
+			// Corresponds to strongConditionForStability
 			function highCostStabilize(x, y, gt) {
+				// Corresponds to lineIsFull
 				function checkTwoDirection(dirX, dirY, flag, first) {
 					var lx = (x + dirX), ly = (y + dirY), c = 0
 					while ((lx >= 0) && (ly >= 0) && (lx < 8) && (ly < 8)) {
@@ -238,6 +336,7 @@
 					}
 					if (first) {
 						if (checkTwoDirection((- dirX), (- dirY), flag, false)) {
+							// Memoize
 							gt.state[(8 * x) + y] |= flag
 						} else {
 							return false
@@ -248,7 +347,12 @@
 						lx -= dirX
 						ly -= dirY
 						if ((gt.state[(8 * lx) + ly] & flag) == 0) {
+							// Memoize
 							gt.state[(8 * lx) + ly] |= flag
+							/*
+							Check isStable values of self and neigbors because
+							lineIsFull(gt, lx, ly, dirX, dirY) is changed.
+							*/
 							if ((gt.state[(8 * lx) + ly] & STABLE) == STABLE) {
 								around(lowCostStabilize, lx, ly, gt)
 							} else {
@@ -264,19 +368,30 @@
 				checkTwoDirection(1, 1, STABLE_45, true)
 				checkTwoDirection(0, 1, STABLE_90, true)
 				checkTwoDirection(-1, 1, STABLE_135, true)
+				/*
+				Check isStable values of self and neigbors
+				because isEmpty(gt, x, y) is changed.
+				*/
 				if ((gt.state[(8 * x) + y] & STABLE) == STABLE) {
 					around(lowCostStabilize, x, y, gt)
 				} else {
 					lowCostStabilize(x, y, gt)
 				}
 			}
+			/*
+			Set stone to (x, y) of gt (it should be a legal move) and check all conditions
+			and return successing state.
+			No side effect
+			*/
 			function setStone(gt, x, y) {
 				var nt = reverseStones(gt, x, y), cell
+				// Update degree of opening
 				around(function(x, y) {
 					if ((x >= 0) && (y >= 0) && (x < 8) && (y < 8)) {
 						nt.state[(8 * x) + y]--
 					}
 				}, x, y)
+				// Check conditions relate to changed cells
 				highCostStabilize(x, y, nt)
 				while (idx > 0) {
 					idx--
@@ -285,6 +400,7 @@
 				}
 				return nt
 			}
+			// Force GameTree.list[i]
 			function getMove(gt, i) {
 				var move = gt.list[i]
 				if (!move.state) {
@@ -303,6 +419,7 @@
 				1, 3, 5, 6, 6, 5, 3, 1,
 				0, 1, 2, 4, 4, 2, 1, 0
 			]
+			// 10 Parameters -> 8x8 Table
 			function expandTable(res) {
 				var table = (new Array(64))
 				for (var i = 0; i < 64; i++) {
@@ -313,6 +430,7 @@
 			var scoreTable = expandTable([64, -71, -73, 34, 12, -18, -27, 21, 19, 1]),
 				openTable = expandTable([0, -4, 23, -106, -51, -36, -27, -36, -34, -28]),
 				stableScore = 64
+			// Count one color stones
 			function countBit(arr) {
 				var i, j, bit = 0
 				for (i = 0; i < 2; i++) {
@@ -327,6 +445,7 @@
 			function calcScore(gt) {
 				if (gt.depth != -1) {
 					gt.depth = -1
+					// Check the end of the game with empty cells.
 					if (((gt.self[0] != 0) || (gt.self[1] != 0))
 							&& ((gt.opponent[0] != 0) || (gt.opponent[1] != 0))) {
 						var i, j, k, sum = 0
@@ -356,6 +475,7 @@
 			}
 			function negaMax(gt, depth, alpha, beta) {
 				var i, j, move, score, max, tmp
+				// Check the last result
 				if (gt.depth == depth) {
 					if (gt.alpha >= beta) {
 						return gt.alpha
@@ -364,6 +484,7 @@
 						return gt.beta
 					}
 				} else {
+					// Update the depth
 					gt.depth = depth
 					gt.alpha = (- Infinity)
 					gt.beta = Infinity
@@ -375,6 +496,7 @@
 					i--
 					move = getMove(gt, i)
 					if (depth > 0) {
+						// Iterative deepening (and Move Ordering)
 						while (move.depth < (depth - 2)) {
 							negaMax(move, ((move.depth >= 0) ? (move.depth + 1) : 0), (- beta), (- alpha))
 						}
@@ -384,17 +506,20 @@
 					}
 					if (score > max) {
 						if ((depth == 0) || (score >= beta)) {
+							// Move Ordering
 							if ((i + 1) < gt.list.length) {
 								gt.list.splice(i, 1)
 								gt.list.push(move)
 							}
 							if (score >= beta) {
+								// Memoize
 								gt.alpha = score
 								return score
 							}
 						}
 						max = score
 					} else if (depth == 0) {
+						// Move Ordering
 						j = i
 						for (;;) {
 							tmp = gt.list[j + 1]
@@ -408,6 +533,7 @@
 						}
 					}
 				} while (i > 0)
+				// Memoize
 				gt.beta = max
 				return max
 			}
@@ -436,13 +562,19 @@
 						tmp = GameTree.hashTable.get(hash)
 						if (tmp) {
 							if (tmp == move) {
-								return
+								return // Parent node is already shared
 							} else if (!move.list) {
 								gt.list[i] = tmp
 								continue
 							} else if (tmp.list) {
 								tmp1 = tmp.list[tmp.list.length - 1]
 								tmp2 = move.list[move.list.length - 1]
+								/*
+								Compare alpha value primarily.
+								If beta value is not Infinity,
+								a cutoff must have occured in negaMax(tmp|move, *, f, (f + 1)).
+								If alpha value is -Infinity, any cutoff did not occur.
+								*/
 								if ((tmp1.depth == tmp2.depth)
 										? ((tmp1.alpha == tmp2.alpha)
 											? (tmp1.beta <= tmp2.beta)
@@ -494,7 +626,7 @@
 					}
 				}
 			}
-			function highlightDefiniteStones(gt) {
+			function highlightStableStones(gt) {
 				var x, y
 				ctx.fillStyle = "red"
 				for (x = 0; x < 8; x++) {
@@ -521,8 +653,8 @@
 			const COLOR_BAR = ["black", "white"]
 			function drawBoard(gt) {
 				ctx.clearRect(0, 0, 400, 400)
-				highlightMoves(gt)
-				highlightDefiniteStones(gt)
+				highlightMoves(gt) // Optinal
+				highlightStableStones(gt) // Optional
 				ctx.fillStyle = COLOR_BAR[gt.color]
 				drawStones(gt.self)
 				ctx.fillStyle = COLOR_BAR[1 - gt.color]
@@ -549,8 +681,8 @@
 						return
 					}
 				}
-				gt.list = null
-				gt.depth = -2
+				gt.list = null // Memory free
+				gt.depth = -2 // Delete the last result
 				GameTree.log.push(gt)
 				return move
 			}
