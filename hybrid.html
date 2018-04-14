@@ -58,7 +58,7 @@
 				}
 				function weakConditionForStability(gt, x, y, dirX, dirY) {
 					function hasStableStone(board, x, y) {
-						return ((!inRange(x, y)) || (hasStone(board, x, y) && isStable(gt, x, y)))
+						return (hasStone(board, x, y) && isStable(gt, x, y))
 					}
 					function nextToStableFriend(board) {
 						return (hasStone(board, x, y)
