@@ -36,7 +36,7 @@
 					return ((inRange(x, y) && (!hasStone(gt.self, x, y)) && (!hasStone(gt.opponent, x, y))) ? 1 : 0)
 				}
 				function isStable(gt, x, y) {
-					return ((!inRange(x, y)) || ((gt.state[xy2i(x, y)] & STABLE) == STABLE))
+					return ((gt.state[xy2i(x, y)] & STABLE) == STABLE)
 				}
 				function lineIsFull(gt, x, y, dirX, dirY) {
 					function checkOneDirection(x, y, dirX, dirY) {
@@ -47,9 +47,10 @@
 					return (checkOneDirection(x, y, dirX, dirY) && checkOneDirection(x, y, (- dirX), (- dirY)))
 				}
 				function neigborsAreStable(gt, x, y, dirX, dirY) {
-					return ((isStable(gt, (x - dirX), (y - dirY)) && isStable(gt, (x + dirX), (y + dirY)))
-						|| (!inRange((x - dirX), (y - dirY)))
-						|| (!inRange((x + dirX), (y + dirY))))
+					return ((!inRange((x - dirX), (y - dirY)))
+						|| (!inRange((x + dirX), (y + dirY)))
+						|| (isStable(gt, (x - dirX), (y - dirY))
+							&& isStable(gt, (x + dirX), (y + dirY))))
 				}
 				function strongConditionForStability(gt, x, y, dirX, dirY) {
 					return ((isEmpty(gt, x, y) == 0)
@@ -115,7 +116,14 @@
 				this.opponent.set(opponent)
 				this.state.set(state)
 			}
-			// STABLE == (STABLE_0 | STABLE_45 | STABLE_90 | STABLE_135)
+			/*
+			OPEN       = 0b00001111
+			STABLE_0   = 0b00010000
+			STABLE_45  = 0b00100000
+			STABLE_90  = 0b01000000
+			STABLE_135 = 0b10000000
+			STABLE     = 0b11110000
+			*/
 			const BLACK = 0, WHITE = 1, OPEN = 15, STABLE_0 = 16,
 				STABLE_45 = 32, STABLE_90 = 64, STABLE_135 = 128, STABLE = 240,
 				INITIAL_BLACK = (new Uint32Array([0x10000000, 0x00000008])),
