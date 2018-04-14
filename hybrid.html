@@ -46,14 +46,15 @@
 					}
 					return (checkOneDirection(x, y, dirX, dirY) && checkOneDirection(x, y, (- dirX), (- dirY)))
 				}
-				function bothNeigborsAreStable(gt, x, y, dirX, dirY) {
+				function neigborsAreStable(gt, x, y, dirX, dirY) {
 					return ((isStable(gt, (x - dirX), (y - dirY)) && isStable(gt, (x + dirX), (y + dirY)))
-						|| (!inRange((x - dirX), (y - dirY))) || (!inRange((x + dirX), (y + dirY))))
+						|| (!inRange((x - dirX), (y - dirY)))
+						|| (!inRange((x + dirX), (y + dirY))))
 				}
 				function strongConditionForStability(gt, x, y, dirX, dirY) {
 					return ((isEmpty(gt, x, y) == 0)
 						&& (lineIsFull(gt, x, y, dirX, dirY)
-							|| bothNeigborsAreStable(gt, x, y, dirX, dirY)))
+							|| neigborsAreStable(gt, x, y, dirX, dirY)))
 				}
 				function weakConditionForStability(gt, x, y, dirX, dirY) {
 					function hasStableStone(board, x, y) {
@@ -66,7 +67,7 @@
 					}
 					return ((isEmpty(gt, x, y) == 0)
 						&& (lineIsFull(gt, x, y, dirX, dirY)
-							|| bothNeigborsAreStable(gt, x, y, dirX, dirY)
+							|| neigborsAreStable(gt, x, y, dirX, dirY)
 							|| nextToStableFriend(gt.self)
 							|| nextToStableFriend(gt.opponent)))
 				}
@@ -269,7 +270,7 @@
 			// Corresponds to weakConditionForStability
 			function lowCostStabilize(x, y, gt) {
 				var board
-				// Corresponds to bothNeigborsAreStable and nextToStableFriend
+				// Corresponds to neigborsAreStable and nextToStableFriend
 				function checkTwoDirection(dirX, dirY, flag) {
 					if ((gt.state[(8 * x) + y] & flag) != 0) {
 						return true
