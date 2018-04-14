@@ -47,7 +47,8 @@
 					return (checkOneDirection(x, y, dirX, dirY) && checkOneDirection(x, y, (- dirX), (- dirY)))
 				}
 				function bothNeigborsAreStable(gt, x, y, dirX, dirY) {
-					return (isStable(gt, (x - dirX), (y - dirY)) && isStable(gt, (x + dirX), (y + dirY)))
+					return ((isStable(gt, (x - dirX), (y - dirY)) && isStable(gt, (x + dirX), (y + dirY)))
+						|| (!inRange((x - dirX), (y - dirY))) || (!inRange((x + dirX), (y + dirY))))
 				}
 				function strongConditionForStability(gt, x, y, dirX, dirY) {
 					return ((isEmpty(gt, x, y) == 0)
