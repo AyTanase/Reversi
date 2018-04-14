@@ -116,16 +116,13 @@
 				this.opponent.set(opponent)
 				this.state.set(state)
 			}
-			/*
-			OPEN       = 0b00001111
-			STABLE_0   = 0b00010000
-			STABLE_45  = 0b00100000
-			STABLE_90  = 0b01000000
-			STABLE_135 = 0b10000000
-			STABLE     = 0b11110000
-			*/
-			const BLACK = 0, WHITE = 1, OPEN = 15, STABLE_0 = 16,
-				STABLE_45 = 32, STABLE_90 = 64, STABLE_135 = 128, STABLE = 240,
+			const BLACK = 0, WHITE = 1,
+				OPEN       = 0b00001111,
+				STABLE_0   = 0b00010000,
+				STABLE_45  = 0b00100000,
+				STABLE_90  = 0b01000000,
+				STABLE_135 = 0b10000000,
+				STABLE     = 0b11110000,
 				INITIAL_BLACK = (new Uint32Array([0x10000000, 0x00000008])),
 				INITIAL_WHITE = (new Uint32Array([0x08000000, 0x00000010])),
 				INITIAL_STATE = (new Uint8Array([
@@ -236,7 +233,6 @@
 			/*
 			set a stone in (x, y) of gt (it should be a legal move),
 			reverse stones, and return the result node.
-			No side effect
 			*/
 			function reverseStones(gt, x, y) {
 				var nt
@@ -391,7 +387,6 @@
 			/*
 			Set a stone to (x, y) of gt (it should be a legal move) and check all conditions
 			and return the successing state.
-			No side effect
 			*/
 			function setStone(gt, x, y) {
 				var nt = reverseStones(gt, x, y), cell
