@@ -46,7 +46,7 @@
 					}
 					return (checkOneDirection(x, y, dirX, dirY) && checkOneDirection(x, y, (- dirX), (- dirY)))
 				}
-				function neigborsAreStable(gt, x, y, dirX, dirY) {
+				function neighborsAreStable(gt, x, y, dirX, dirY) {
 					return ((!inRange((x - dirX), (y - dirY)))
 						|| (!inRange((x + dirX), (y + dirY)))
 						|| (isStable(gt, (x - dirX), (y - dirY))
@@ -55,7 +55,7 @@
 				function strongConditionForStability(gt, x, y, dirX, dirY) {
 					return ((isEmpty(gt, x, y) == 0)
 						&& (lineIsFull(gt, x, y, dirX, dirY)
-							|| neigborsAreStable(gt, x, y, dirX, dirY)))
+							|| neighborsAreStable(gt, x, y, dirX, dirY)))
 				}
 				function weakConditionForStability(gt, x, y, dirX, dirY) {
 					function hasStableStone(board, x, y) {
@@ -68,7 +68,7 @@
 					}
 					return ((isEmpty(gt, x, y) == 0)
 						&& (lineIsFull(gt, x, y, dirX, dirY)
-							|| neigborsAreStable(gt, x, y, dirX, dirY)
+							|| neighborsAreStable(gt, x, y, dirX, dirY)
 							|| nextToStableFriend(gt.self)
 							|| nextToStableFriend(gt.opponent)))
 				}
@@ -274,7 +274,7 @@
 			// Corresponds to weakConditionForStability
 			function lowCostStabilize(x, y, gt) {
 				var board
-				// Corresponds to neigborsAreStable and nextToStableFriend
+				// Corresponds to neighborsAreStable and nextToStableFriend
 				function checkTwoDirection(dirX, dirY, flag) {
 					if ((gt.state[(8 * x) + y] & flag) != 0) {
 						return true
@@ -356,7 +356,7 @@
 							// Memoize
 							gt.state[(8 * lx) + ly] |= flag
 							/*
-							Check isStable values of self and neigbors because
+							Check isStable values of self and neighbors because
 							lineIsFull(gt, lx, ly, dirX, dirY) is changed.
 							*/
 							if ((gt.state[(8 * lx) + ly] & STABLE) == STABLE) {
@@ -375,7 +375,7 @@
 				checkTwoDirection(0, 1, STABLE_90, true)
 				checkTwoDirection(-1, 1, STABLE_135, true)
 				/*
-				Check isStable values of self and neigbors
+				Check isStable values of self and neighbors
 				because isEmpty(gt, x, y) is changed.
 				*/
 				if ((gt.state[(8 * x) + y] & STABLE) == STABLE) {
