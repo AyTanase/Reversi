@@ -138,8 +138,8 @@
 			function initialGameTree() {
 				return (new GameTree(BLACK, INITIAL_BLACK, INITIAL_WHITE, INITIAL_STATE))
 			}
-			var self = (new Uint32Array(2)), opponent = (new Uint32Array(2)),
-				potential = (new Uint32Array(2)), moves = (new Uint32Array(2))
+			var $self$ = (new Uint32Array(2)), $opponent$ = (new Uint32Array(2)),
+				$potential$ = (new Uint32Array(2)), $moves$ = (new Uint32Array(2))
 			// Calculate the legal moves and map them to the variable "moves"
 			function getMoves(origSelf, origOpponent) {
 				var mask, shiftWidth
@@ -158,22 +158,22 @@
 					arr[1] >>>= shiftWidth
 				}
 				function checkMoves(shift) {
-					self.set(origSelf)
-					opponent.set(origOpponent)
-					potential[0] = (~ (self[0] | opponent[0]))
-					potential[1] = (~ (self[1] | opponent[1]))
-					shift(self)
-					shift(opponent)
+					$self$.set(origSelf)
+					$opponent$.set(origOpponent)
+					$potential$[0] = (~ ($self$[0] | $opponent$[0]))
+					$potential$[1] = (~ ($self$[1] | $opponent$[1]))
+					shift($self$)
+					shift($opponent$)
 					for (var i = 0; i < 6; i++) {
-						potential[0] &= opponent[0]
-						potential[1] &= opponent[1]
-						shift(self)
-						shift(opponent)
-						moves[0] |= (self[0] & potential[0])
-						moves[1] |= (self[1] & potential[1])
+						$potential$[0] &= $opponent$[0]
+						$potential$[1] &= $opponent$[1]
+						shift($self$)
+						shift($opponent$)
+						$moves$[0] |= ($self$[0] & $potential$[0])
+						$moves$[1] |= ($self$[1] & $potential$[1])
 					}
 				}
-				moves.fill(0)
+				$moves$.fill(0)
 				mask = 0xFFFFFFFF; shiftWidth = 8
 				checkMoves(leftShift)
 				checkMoves(rightShift)
@@ -186,10 +186,10 @@
 				shiftWidth = 7; checkMoves(leftShift)
 				shiftWidth = 1; checkMoves(rightShift)
 			}
-			var cellList = (new Array(64))
+			const CELL_LIST = (new Array(64))
 			for (let x = 0; x < 8; x++) {
 				for (let y = 0; y < 8; y++) {
-					cellList[(8 * x) + y] = { x: x, y: y }
+					CELL_LIST[(8 * x) + y] = { x: x, y: y }
 				}
 			}
 			// Force GameTree.list (moves list)
@@ -199,13 +199,13 @@
 					gt.list = []
 					getMoves(gt.self, gt.opponent)
 					for (i = 0; i < 2; i++) {
-						if (moves[i] != 0) {
+						if ($moves$[i] != 0) {
 							for (j = 0; j < 32; j++) {
 								// x = ((4 * i) + (j >> 3)), y = (j & 7)
-								if ((moves[i] & (1 << j)) != 0) {
+								if (($moves$[i] & (1 << j)) != 0) {
 									// Delay reversing and, instead, set the position where to set
 									// ((32 * i) + j) == ((8 * x) + y)
-									gt.list.push(cellList[(32 * i) + j])
+									gt.list.push(CELL_LIST[(32 * i) + j])
 								}
 							}
 						}
@@ -226,9 +226,9 @@
 				func((x + 1), y, rest)
 				func((x + 1), (y + 1), rest)
 			}
-			var changedList = (new Array(18)), idx
+			var $changedList$ = (new Array(18)), $idx$
 			for (let i = 0; i < 18; i++) {
-				changedList[i] = { x: 0, y: 0 }
+				$changedList$[i] = { x: 0, y: 0 }
 			}
 			/*
 			set a stone in (x, y) of gt (it should be a legal move),
@@ -256,9 +256,9 @@
 									ref = (1 << ((8 * (lx & 3)) + ly))
 									nt.opponent[i] |= ref
 									nt.self[i] ^= ref
-									changedList[idx].x = lx
-									changedList[idx].y = ly
-									idx++
+									$changedList$[$idx$].x = lx
+									$changedList$[$idx$].y = ly
+									$idx$++
 								}
 							}
 						}
@@ -267,7 +267,7 @@
 				}
 				nt = (new GameTree((1 - gt.color), gt.opponent, gt.self, gt.state))
 				nt.opponent[x >> 2] |= (1 << ((8 * (x & 3)) + y))
-				idx = 0
+				$idx$ = 0
 				around(reverseOneDirection, 0, 0)
 				return nt
 			}
@@ -325,14 +325,14 @@
 					}
 				}
 			}
-			var stones = (new Uint32Array(2))
+			var $stones$ = (new Uint32Array(2))
 			// Corresponds to strongConditionForStability
 			function highCostStabilize(x, y, gt) {
 				// Corresponds to lineIsFull
 				function checkTwoDirection(dirX, dirY, flag, first) {
 					var lx = (x + dirX), ly = (y + dirY), c = 0
 					while ((lx >= 0) && (ly >= 0) && (lx < 8) && (ly < 8)) {
-						if ((stones[lx >> 2] & (1 << ((8 * (lx & 3)) + ly))) != 0) {
+						if (($stones$[lx >> 2] & (1 << ((8 * (lx & 3)) + ly))) != 0) {
 							lx += dirX
 							ly += dirY
 							c++
@@ -368,8 +368,8 @@
 					}
 					return true
 				}
-				stones[0] = (gt.self[0] | gt.opponent[0])
-				stones[1] = (gt.self[1] | gt.opponent[1])
+				$stones$[0] = (gt.self[0] | gt.opponent[0])
+				$stones$[1] = (gt.self[1] | gt.opponent[1])
 				checkTwoDirection(1, 0, STABLE_0, true)
 				checkTwoDirection(1, 1, STABLE_45, true)
 				checkTwoDirection(0, 1, STABLE_90, true)
@@ -398,15 +398,15 @@
 				}, x, y)
 				// Check conditions relate to the changed cells
 				highCostStabilize(x, y, nt)
-				while (idx > 0) {
-					idx--
-					cell = changedList[idx]
+				while ($idx$ > 0) {
+					$idx$--
+					cell = $changedList$[$idx$]
 					lowCostStabilize(cell.x, cell.y, nt)
 				}
 				return nt
 			}
 			// Force GameTree.list[i]
-			function getMove(gt, i) {
+			function forceMove(gt, i) {
 				var move = gt.list[i]
 				if (!move.state) {
 					move = setStone(gt, move.x, move.y)
@@ -414,7 +414,7 @@
 				}
 				return move
 			}
-			var indexBoard = [
+			const INDEX_TABLE = [
 				0, 1, 2, 4, 4, 2, 1, 0,
 				1, 3, 5, 6, 6, 5, 3, 1,
 				2, 5, 7, 8, 8, 7, 5, 2,
@@ -428,13 +428,13 @@
 			function expandTable(res) {
 				var table = (new Array(64))
 				for (var i = 0; i < 64; i++) {
-					table[i] = res[indexBoard[i]]
+					table[i] = res[INDEX_TABLE[i]]
 				}
 				return table
 			}
-			var scoreTable = expandTable([64, -71, -73, 34, 12, -18, -27, 21, 19, 1]),
-				openTable = expandTable([0, -4, 23, -106, -51, -36, -27, -36, -34, -28]),
-				stableScore = 64
+			var $scoreTable$ = expandTable([64, -71, -73, 34, 12, -18, -27, 21, 19, 1]),
+				$openTable$ = expandTable([0, -4, 23, -106, -51, -36, -27, -36, -34, -28]),
+				$stableScore$ = 64
 			// Count one color stones
 			function countBit(arr) {
 				var i, j, bit = 0
@@ -459,20 +459,20 @@
 								k = ((32 * i) + j)
 								if ((gt.state[k] & STABLE) == STABLE) {
 									if ((gt.self[i] & (1 << j)) != 0) {
-										sum += stableScore
+										sum += $stableScore$
 									} else {
-										sum -= stableScore
+										sum -= $stableScore$
 									}
 								} else if ((gt.self[i] & (1 << j)) != 0) {
-									sum += (scoreTable[k] + (openTable[k] * (gt.state[k] & OPEN)))
+									sum += ($scoreTable$[k] + ($openTable$[k] * (gt.state[k] & OPEN)))
 								} else if ((gt.opponent[i] & (1 << j)) != 0) {
-									sum -= (scoreTable[k] + (openTable[k] * (gt.state[k] & OPEN)))
+									sum -= ($scoreTable$[k] + ($openTable$[k] * (gt.state[k] & OPEN)))
 								}
 							}
 						}
 						gt.alpha = sum
 					} else {
-						gt.alpha = (stableScore * ((gt.self[0] != 0)
+						gt.alpha = ($stableScore$ * ((gt.self[0] != 0)
 							? countBit(gt.self) : (- countBit(gt.opponent))))
 					}
 				}
@@ -499,7 +499,7 @@
 				max = (- Infinity)
 				do {
 					i--
-					move = getMove(gt, i)
+					move = forceMove(gt, i)
 					if (depth > 0) {
 						// Iterative deepening (and Move Ordering)
 						while (move.depth < (depth - 2)) {
@@ -618,26 +618,26 @@
 				console.log(`${count}, ${depth}, ${(score + 32) >> 6}, ${spend}ms`)
 				return gt.list.pop()
 			}
-			var canvas = document.querySelector("canvas"), ctx = canvas.getContext("2d")
+			const CANVAS = document.querySelector("canvas"), CTX = CANVAS.getContext("2d")
 			function highlightMoves(gt) {
 				var x, y
 				getMoves(gt.self, gt.opponent)
-				ctx.fillStyle = "yellow"
+				CTX.fillStyle = "yellow"
 				for (x = 0; x < 8; x++) {
 					for (y = 0; y < 8; y++) {
-						if ((moves[x >> 2] & (1 << ((8 * (x & 3)) + y))) != 0) {
-							ctx.fillRect((50 * x), (50 * y), 50, 50)
+						if (($moves$[x >> 2] & (1 << ((8 * (x & 3)) + y))) != 0) {
+							CTX.fillRect((50 * x), (50 * y), 50, 50)
 						}
 					}
 				}
 			}
 			function highlightStableStones(gt) {
 				var x, y
-				ctx.fillStyle = "red"
+				CTX.fillStyle = "red"
 				for (x = 0; x < 8; x++) {
 					for (y = 0; y < 8; y++) {
 						if ((gt.state[(8 * x) + y] & STABLE) == STABLE) {
-							ctx.fillRect((50 * x), (50 * y), 50, 50)
+							CTX.fillRect((50 * x), (50 * y), 50, 50)
 						}
 					}
 				}
@@ -647,37 +647,37 @@
 				for (x = 0; x < 8; x++) {
 					for (y = 0; y < 8; y++) {
 						if ((board[x >> 2] & (1 << ((8 * (x & 3)) + y))) != 0) {
-							ctx.beginPath()
-							ctx.arc(((50 * x) + 25), ((50 * y) + 25), 23, 0, (2 * Math.PI))
-							ctx.closePath()
-							ctx.fill()
+							CTX.beginPath()
+							CTX.arc(((50 * x) + 25), ((50 * y) + 25), 23, 0, (2 * Math.PI))
+							CTX.closePath()
+							CTX.fill()
 						}
 					}
 				}
 			}
 			const COLOR_BAR = ["black", "white"]
 			function drawBoard(gt) {
-				ctx.clearRect(0, 0, 400, 400)
+				CTX.clearRect(0, 0, 400, 400)
 				highlightMoves(gt) // Optional
 				highlightStableStones(gt) // Optional
-				ctx.fillStyle = COLOR_BAR[gt.color]
+				CTX.fillStyle = COLOR_BAR[gt.color]
 				drawStones(gt.self)
-				ctx.fillStyle = COLOR_BAR[1 - gt.color]
+				CTX.fillStyle = COLOR_BAR[1 - gt.color]
 				drawStones(gt.opponent)
 			}
 			function setStoneByHuman(gt, x, y) {
 				var move
 				makeList(gt)
 				getMoves(gt.self, gt.opponent)
-				if ((moves[0] == 0) && (moves[1] == 0)) {
+				if (($moves$[0] == 0) && ($moves$[1] == 0)) {
 					move = gt.list[0]
 				} else {
 					var i = (x >> 2), ref = (1 << ((8 * (x & 3)) + y))
-					if ((moves[i] & ref) != 0) {
+					if (($moves$[i] & ref) != 0) {
 						var j = gt.list.length
 						for (;;) {
 							j--
-							move = getMove(gt, j)
+							move = forceMove(gt, j)
 							if ((move.opponent[i] & ref) != 0) {
 								break
 							}
@@ -692,7 +692,7 @@
 				return move
 			}
 			var $gameTree$
-			canvas.addEventListener("click", function(e) {
+			CANVAS.addEventListener("click", function(e) {
 				var res = setStoneByHuman($gameTree$, Math.floor(0.02 * e.offsetX), Math.floor(0.02 * e.offsetY))
 				if (res) {
 					$gameTree$ = setStoneByAI(res, 0)
@@ -705,16 +705,16 @@
 					drawBoard($gameTree$)
 				}
 			})
-			var userColor = document.getElementById("user-color")
+			const USER_COLOR = document.getElementById("user-color")
 			function initGame(color) {
 				GameTree.log = []
 				$gameTree$ = initialGameTree()
 				console.log("stone, ply-depth, score, time")
 				if (color == BLACK) {
-					userColor.textContent = "Black"
+					USER_COLOR.textContent = "Black"
 				} else {
 					$gameTree$ = setStoneByAI($gameTree$, 1)
-					userColor.textContent = "White"
+					USER_COLOR.textContent = "White"
 				}
 				drawBoard($gameTree$)
 			}
