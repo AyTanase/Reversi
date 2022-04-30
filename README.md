@@ -4,6 +4,7 @@ Reversi Programs
 
 ### How to Play
 Click where you want to set the stone.
+If you cannot set a stone anyware, click the board to pass.
 
 ### index.html
 Use only position
