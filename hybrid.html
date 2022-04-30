@@ -706,11 +706,11 @@
 				}
 			})
 			const USER_COLOR = document.getElementById("user-color")
-			function initGame(color) {
+			function initGame() {
 				GameTree.log = []
 				$gameTree$ = initialGameTree()
 				console.log("stone, ply-depth, score, time")
-				if (color == BLACK) {
+				if (window.confirm("Do you use black?")) {
 					USER_COLOR.textContent = "Black"
 				} else {
 					$gameTree$ = setStoneByAI($gameTree$, 1)
@@ -720,9 +720,9 @@
 			}
 			document.getElementById("reset").addEventListener("click", function() {
 				console.clear()
-				initGame(window.confirm("Do you use black?") ? BLACK : WHITE)
+				initGame()
 			})
-			initGame(BLACK)
+			initGame()
 		</script>
 	</body>
 </html>
