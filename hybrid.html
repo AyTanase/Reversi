@@ -5,12 +5,12 @@
 		<title>Hybrid Approach Reversi</title>
 		<style type="text/css">
 			html { -webkit-user-select: none }
-			canvas { display: block; margin: 5px auto; background-color: green }
+			canvas { display: block; margin: 5px auto; background-color: black }
 			div { width: fit-content; margin: auto }
 		</style>
 	</head>
 	<body>
-		<canvas width=400 height=400></canvas>
+		<canvas width=409 height=409></canvas>
 		<div>
 			<button id="undo" type="button">Undo</button>
 			<button id="reset" type="button">Reset</button>
@@ -619,38 +619,45 @@
 				return gt.list.pop()
 			}
 			const CANVAS = document.querySelector("canvas"), CTX = CANVAS.getContext("2d")
+			const CELL_SIZE = 50, CELL_BORDER = 1, STONE_RADIUS = 22
+			function idx2pos(index) {
+				return CELL_BORDER + ((CELL_SIZE + CELL_BORDER) * index)
+			}
+			function fillCell(x, y) {
+				CTX.fillRect(idx2pos(x), idx2pos(y), CELL_SIZE, CELL_SIZE)
+			}
+			function fillStone(x, y) {
+				CTX.beginPath()
+				CTX.arc((idx2pos(x) + 0.5*CELL_SIZE), (idx2pos(y) + 0.5*CELL_SIZE), STONE_RADIUS, 0, 2*Math.PI)
+				CTX.closePath()
+				CTX.fill()
+			}
 			function highlightMoves(gt) {
-				var x, y
 				getMoves(gt.self, gt.opponent)
 				CTX.fillStyle = "yellow"
-				for (x = 0; x < 8; x++) {
-					for (y = 0; y < 8; y++) {
+				for (let x = 0; x < 8; x++) {
+					for (let y = 0; y < 8; y++) {
 						if (($moves$[x >> 2] & (1 << ((8 * (x & 3)) + y))) != 0) {
-							CTX.fillRect((50 * x), (50 * y), 50, 50)
+							fillCell(x, y)
 						}
 					}
 				}
 			}
 			function highlightStableStones(gt) {
-				var x, y
 				CTX.fillStyle = "red"
-				for (x = 0; x < 8; x++) {
-					for (y = 0; y < 8; y++) {
+				for (let x = 0; x < 8; x++) {
+					for (let y = 0; y < 8; y++) {
 						if ((gt.state[(8 * x) + y] & STABLE) == STABLE) {
-							CTX.fillRect((50 * x), (50 * y), 50, 50)
+							fillCell(x, y)
 						}
 					}
 				}
 			}
 			function drawStones(board) {
-				var x, y
-				for (x = 0; x < 8; x++) {
-					for (y = 0; y < 8; y++) {
+				for (let x = 0; x < 8; x++) {
+					for (let y = 0; y < 8; y++) {
 						if ((board[x >> 2] & (1 << ((8 * (x & 3)) + y))) != 0) {
-							CTX.beginPath()
-							CTX.arc(((50 * x) + 25), ((50 * y) + 25), 23, 0, (2 * Math.PI))
-							CTX.closePath()
-							CTX.fill()
+							fillStone(x, y)
 						}
 					}
 				}
@@ -658,6 +665,12 @@
 			const COLOR_BAR = ["black", "white"]
 			function drawBoard(gt) {
 				CTX.clearRect(0, 0, 400, 400)
+				CTX.fillStyle = "green"
+				for (let x = 0; x < 8; x++) {
+					for (let y = 0; y < 8; y++) {
+						fillCell(x, y)
+					}
+				}
 				highlightMoves(gt) // Optional
 				// highlightStableStones(gt) // Optional
 				CTX.fillStyle = COLOR_BAR[gt.color]
