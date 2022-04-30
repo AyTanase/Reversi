@@ -659,7 +659,7 @@
 			function drawBoard(gt) {
 				CTX.clearRect(0, 0, 400, 400)
 				highlightMoves(gt) // Optional
-				highlightStableStones(gt) // Optional
+				// highlightStableStones(gt) // Optional
 				CTX.fillStyle = COLOR_BAR[gt.color]
 				drawStones(gt.self)
 				CTX.fillStyle = COLOR_BAR[1 - gt.color]
