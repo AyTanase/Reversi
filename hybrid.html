@@ -706,7 +706,7 @@
 			}
 			var $gameTree$
 			CANVAS.addEventListener("click", function(e) {
-				var res = setStoneByHuman($gameTree$, Math.floor(0.02 * e.offsetX), Math.floor(0.02 * e.offsetY))
+				var res = setStoneByHuman($gameTree$, Math.floor(e.offsetX / 51), Math.floor(e.offsetY / 51))
 				if (res) {
 					$gameTree$ = setStoneByAI(res, 0)
 					drawBoard($gameTree$)
